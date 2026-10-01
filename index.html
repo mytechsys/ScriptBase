@@ -1,1 +1,387 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Oracle HCM Cloud - Payroll SQL Snippets Library</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        github: {
+                            bg: '#0d1117',
+                            card: '#161b22',
+                            border: '#30363d',
+                            text: '#c9d1d9',
+                            muted: '#8b949e',
+                            accent: '#238636',
+                            accentHover: '#2ea043',
+                            codebg: '#010409'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        code, pre {
+            font-family: 'Fira Code', monospace;
+        }
+    </style>
+</head>
+<body class="bg-github-bg text-github-text h-full flex flex-col antialiased selection:bg-github-accent selection:text-white">
 
+    <header class="bg-[#161b22] border-b border-github-border sticky top-0 z-50 px-4 lg:px-8 py-3 flex items-center justify-between">
+        <div class="flex items-center space-x-3">
+            <div class="w-9 h-9 rounded-full bg-github-border flex items-center justify-center text-white text-lg font-bold">
+                <i class="fa-solid fa-database text-github-accent"></i>
+            </div>
+            <div>
+                <h1 class="text-sm font-semibold text-white tracking-wide">Oracle HCM Cloud</h1>
+                <p class="text-xs text-github-muted">GitHub CSV Repository & Snippets Viewer</p>
+            </div>
+        </div>
+        <div class="flex items-center space-x-4">
+            <div class="relative hidden sm:block">
+                <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-github-muted">
+                    <i class="fa-solid fa-search text-xs"></i>
+                </span>
+                <input type="text" id="globalSearch" placeholder="Search snippets..." 
+                    class="bg-[#0d1117] text-xs text-white placeholder-github-muted border border-github-border rounded-md pl-8 pr-4 py-1.5 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 w-64 transition-all">
+            </div>
+            <a href="https://github.com/mytechsys/hcm-integrations" target="_blank" rel="noopener noreferrer" 
+               class="flex items-center space-x-2 bg-[#21262d] hover:bg-[#30363d] text-white border border-github-border text-xs font-medium px-3 py-1.5 rounded-md transition-colors shadow-sm">
+                <i class="fa-brands fa-github text-sm"></i>
+                <span class="hidden md:inline">GitHub Repo</span>
+            </a>
+        </div>
+    </header>
+
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 lg:px-8 py-8 flex flex-col gap-6">
+
+        <!-- Hero Card -->
+        <div class="bg-github-card border border-github-border rounded-xl p-6 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div>
+                <div class="flex items-center space-x-2 mb-1">
+                    <span class="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs px-2 py-0.5 rounded-full font-medium">Dynamic CSV Fetch</span>
+                    <span class="bg-blue-500/10 text-blue-400 border border-blue-500/20 text-xs px-2 py-0.5 rounded-full font-medium">Collapsible Tiles</span>
+                </div>
+                <h2 class="text-xl font-bold text-white tracking-tight">Payroll & Metadata Code Index</h2>
+                <p class="text-sm text-github-muted mt-1">Fetched directly from remote GitHub CSV source with raw links.</p>
+            </div>
+            <div id="loadingStatus" class="text-xs text-github-muted flex items-center gap-2">
+                <i class="fa-solid fa-spinner fa-spin text-github-accent"></i> Fetching remote CSV from GitHub...
+            </div>
+        </div>
+
+        <!-- Mobile Search Input -->
+        <div class="sm:hidden w-full">
+            <div class="relative w-full">
+                <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-github-muted">
+                    <i class="fa-solid fa-search text-xs"></i>
+                </span>
+                <input type="text" id="mobileSearch" placeholder="Search snippets..." 
+                    class="bg-github-card text-xs text-white placeholder-github-muted border border-github-border rounded-lg pl-8 pr-4 py-2.5 focus:outline-none focus:border-blue-500 w-full">
+            </div>
+        </div>
+
+        <!-- Snippets List Container -->
+        <div id="snippetsContainer" class="flex flex-col gap-4">
+            <!-- Populated dynamically -->
+        </div>
+
+    </main>
+
+    <footer class="border-t border-github-border py-6 text-center text-xs text-github-muted bg-[#161b22]">
+        <p>Oracle Fusion HCM Cloud Payroll Intelligence &bull; Powered by GitHub Raw CSV & Templates.</p>
+    </footer>
+
+    <script>
+        // Remote CSV URL on GitHub. (You can update this path to your exact repository CSV file raw link).
+        const CSV_URL = 'https://raw.githubusercontent.com/mytechsys/hcm-integrations/refs/heads/master/Integrations/XSD%20Templates/snippets.csv';
+
+        // Built-in fallback dataset in case the remote CSV is unreachable or encounters CORS restrictions in browser sandbox
+        const fallbackCsvData = `Title,Description,Category,RawUrl,CodeContent
+"Object Group XSD Template","Standard XML Schema Definition (XSD) template structure for Object Groups in Oracle HCM Cloud integrations.","xsd","https://raw.githubusercontent.com/mytechsys/hcm-integrations/refs/heads/master/Integrations/XSD%20Templates/ObjectGroup.xsd","<?xml version='1.0' encoding='UTF-8'?>
+<xsd:schema xmlns:xsd='http://www.w3.org/2001/XMLSchema' elementFormDefault='qualified'>
+    <xsd:element name='ObjectGroup'>
+        <xsd:complexType>
+            <xsd:sequence>
+                <xsd:element name='GroupName' type='xsd:string'/>
+                <xsd:element name='GroupType' type='xsd:string'/>
+                <xsd:element name='EffectiveStartDate' type='xsd:date'/>
+            </xsd:sequence>
+        </xsd:complexType>
+    </xsd:element>
+</xsd:schema>"
+"Element, Classification & LDG Query","Streamlined query to extract base payroll element definitions, processing types, primary classifications, and Legislative Data Group details.","sql","https://raw.githubusercontent.com/mytechsys/hcm-integrations/refs/heads/master/Integrations/SQL/element_ldg.sql","SELECT 
+    ldg.name AS ldg_name,
+    ldg.legislation_code,
+    et.element_name AS base_element_name,
+    et.processing_type AS recurring_flag,
+    ec.classification_name
+FROM 
+    pay_element_types_vl et,
+    per_legislative_data_groups_vl ldg,
+    pay_ele_classifications_vl ec
+WHERE 
+    et.legislative_data_group_id = ldg.legislative_data_group_id(+) 
+    AND et.classification_id = ec.classification_id               
+    AND TRUNC(SYSDATE) BETWEEN et.effective_start_date AND et.effective_end_date;"
+"Payroll Unit of Measure (UOM) Codes Reference","Complete decoding mapping table for pay_input_values_vl.uom values used across Oracle HCM Cloud payroll formulas.","reference","https://raw.githubusercontent.com/mytechsys/hcm-integrations/refs/heads/master/Integrations/Docs/uom_reference.txt","/* UOM Code Mapping Reference Table in Fusion HCM */
+M            -> Money (Automatically formats based on LDG currency)
+C            -> Character (Text strings, reference codes, lookups)
+N            -> Number (Generic numeric quantities, multipliers)
+I            -> Integer (Whole numbers, no decimals permitted)
+D            -> Date (Calendar dates stored as YYYY-MM-DD)"`;
+
+        let parsedSnippets = [];
+
+        // Robust CSV Parser function handling quoted fields with newlines
+        function parseCSV(text) {
+            let rows = [];
+            let row = [];
+            let inQuotes = false;
+            let field = '';
+            
+            for (let i = 0; i < text.length; i++) {
+                let c = text[i];
+                let nextC = text[i+1];
+                
+                if (c === '"') {
+                    if (inQuotes && nextC === '"') {
+                        field += '"';
+                        i++;
+                    } else {
+                        inQuotes = !inQuotes;
+                    }
+                } else if (c === ',' && !inQuotes) {
+                    row.push(field);
+                    field = '';
+                } else if ((c === '\r' || c === '\n') && !inQuotes) {
+                    if (c === '\r' && nextC === '\n') { i++; }
+                    row.push(field);
+                    rows.push(row);
+                    row = [];
+                    field = '';
+                } else {
+                    field += c;
+                }
+            }
+            if (field || row.length > 0) {
+                row.push(field);
+                rows.push(row);
+            }
+
+            if (rows.length === 0) return [];
+
+            let headers = rows[0].map(h => h.trim());
+            let result = [];
+
+            for (let i = 1; i < rows.length; i++) {
+                let r = rows[i];
+                if (r.length === headers.length) {
+                    let obj = {};
+                    for (let j = 0; j < headers.length; j++) {
+                        obj[headers[j]] = r[j];
+                    }
+                    result.push(obj);
+                }
+            }
+            return result;
+        }
+
+        // Fetch remote CSV with fallback protection
+        async function loadRemoteCsv() {
+            try {
+                const response = await fetch(CSV_URL);
+                if (!response.ok) throw new Error('Network response was not ok');
+                const csvText = await response.text();
+                const rows = parseCSV(csvText);
+                
+                if (rows.length === 0) throw new Error('Empty CSV parsed');
+
+                parsedSnippets = rows.map((item, index) => ({
+                    id: index + 1,
+                    title: item.Title || 'Untitled Snippet',
+                    description: item.Description || 'No description provided.',
+                    category: item.Category || 'code',
+                    rawUrl: item.RawUrl || 'https://github.com/mytechsys/hcm-integrations',
+                    code: item.CodeContent || '// No code content available'
+                }));
+
+                document.getElementById('loadingStatus').innerHTML = `<span class="text-emerald-400"><i class="fa-solid fa-check-circle"></i> Loaded ${parsedSnippets.length} snippets from GitHub CSV</span>`;
+                renderSnippets();
+            } catch (error) {
+                console.warn('Remote CSV fetch failed or blocked by CORS. Loading built-in fallback dataset.', error);
+                document.getElementById('loadingStatus').innerHTML = `<span class="text-amber-400" title="Using offline fallback dataset"><i class="fa-solid fa-triangle-exclamation"></i> Loaded via Fallback Dataset</span>`;
+                
+                const rows = parseCSV(fallbackCsvData);
+                parsedSnippets = rows.map((item, index) => ({
+                    id: index + 1,
+                    title: item.Title,
+                    description: item.Description,
+                    category: item.Category,
+                    rawUrl: item.RawUrl,
+                    code: item.CodeContent
+                }));
+                renderSnippets();
+            }
+        }
+
+        // Render snippet tiles with collapsed state by default
+        function renderSnippets(searchQuery = '') {
+            const container = document.getElementById('snippetsContainer');
+            container.innerHTML = '';
+
+            const filtered = parsedSnippets.filter(item => {
+                return item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                       item.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                       item.code.toLowerCase().includes(searchQuery.toLowerCase());
+            });
+
+            if (filtered.length === 0) {
+                container.innerHTML = `
+                    <div class="bg-github-card border border-github-border rounded-xl p-12 text-center">
+                        <i class="fa-solid fa-folder-open text-3xl text-github-muted mb-3"></i>
+                        <h3 class="text-white font-semibold text-sm">No matching snippets found</h3>
+                        <p class="text-xs text-github-muted mt-1">Try adjusting your search terms.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            filtered.forEach(snippet => {
+                const card = document.createElement('div');
+                card.className = 'bg-github-card border border-github-border rounded-xl overflow-hidden shadow-sm transition-all';
+                card.innerHTML = `
+                    <!-- Collapsible Header -->
+                    <div onclick="toggleSnippet(${snippet.id})" class="px-5 py-4 bg-[#161b22] hover:bg-[#1b222d] cursor-pointer flex items-center justify-between gap-3 select-none transition-colors border-b border-github-border/50">
+                        <div class="flex items-start space-x-3">
+                            <div class="mt-1 text-github-muted">
+                                <i id="chevron-${snippet.id}" class="fa-solid fa-chevron-right text-xs transition-transform duration-200"></i>
+                            </div>
+                            <div>
+                                <div class="flex items-center space-x-2 mb-1">
+                                    <span class="border text-xs px-2 py-0.5 rounded-md font-medium ${snippet.category === 'sql' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' : snippet.category === 'xsd' ? 'bg-purple-500/10 text-purple-400 border-purple-500/20' : 'bg-amber-500/10 text-amber-400 border-amber-500/20'}">${snippet.category.toUpperCase()}</span>
+                                    <span class="text-xs text-github-muted font-mono">ID: #${snippet.id}</span>
+                                </div>
+                                <h3 class="text-white font-semibold text-sm sm:text-base">${snippet.title}</h3>
+                                <p class="text-xs text-github-muted mt-0.5">${snippet.description}</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center space-x-2 shrink-0">
+                            <a href="${snippet.rawUrl}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()"
+                                class="flex items-center space-x-1.5 bg-[#21262d] hover:bg-[#30363d] text-github-muted hover:text-white border border-github-border text-xs px-2.5 py-1.5 rounded-md transition-all shadow-sm"
+                                title="View GitHub Raw Source">
+                                <i class="fa-brands fa-github text-xs"></i>
+                                <span class="hidden sm:inline">Raw Source</span>
+                            </a>
+                        </div>
+                    </div>
+
+                    <!-- Collapsible Body (Hidden by default) -->
+                    <div id="body-${snippet.id}" class="hidden bg-github-codebg border-t border-github-border flex flex-col">
+                        <div class="px-4 py-2 bg-[#0d1117] border-b border-github-border flex items-center justify-between text-xs text-github-muted">
+                            <span class="font-mono truncate max-w-xs sm:max-w-md"><i class="fa-solid fa-link text-[10px] mr-1"></i> ${snippet.rawUrl}</span>
+                            <button onclick="copySnippet(${snippet.id})" id="btn-${snippet.id}" 
+                                class="flex items-center space-x-1.5 bg-[#21262d] hover:bg-[#30363d] text-github-text hover:text-white border border-github-border text-xs font-medium px-3 py-1.5 rounded-md transition-all shadow-sm">
+                                <i class="fa-regular fa-copy text-xs" id="icon-${snippet.id}"></i>
+                                <span id="text-${snippet.id}">Copy Code</span>
+                            </button>
+                        </div>
+                        <div class="p-4 overflow-x-auto text-xs text-github-text">
+                            <pre class="leading-relaxed"><code>${escapeHtml(snippet.code)}</code></pre>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        // Toggle collapsible accordion tile
+        function toggleSnippet(id) {
+            const body = document.getElementById(`body-${id}`);
+            const chevron = document.getElementById(`chevron-${id}`);
+            
+            if (body.classList.contains('hidden')) {
+                body.classList.remove('hidden');
+                chevron.classList.add('rotate-90');
+            } else {
+                body.classList.add('hidden');
+                chevron.classList.remove('rotate-90');
+            }
+        }
+
+        // HTML escape helper
+        function escapeHtml(text) {
+            return text
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        // Copy to clipboard with visual feedback state
+        function copySnippet(id) {
+            const snippet = parsedSnippets.find(s => s.id === id);
+            if (!snippet) return;
+
+            const textarea = document.createElement('textarea');
+            textarea.value = snippet.code;
+            textarea.style.position = 'fixed';
+            document.body.appendChild(textarea);
+            textarea.focus();
+            textarea.select();
+
+            try {
+                const successful = document.execCommand('copy');
+                const btnText = document.getElementById(`text-${id}`);
+                const btnIcon = document.getElementById(`icon-${id}`);
+                const btn = document.getElementById(`btn-${id}`);
+
+                if (successful) {
+                    btnText.textContent = 'Copied!';
+                    btnIcon.className = 'fa-solid fa-check text-xs text-emerald-400';
+                    btn.classList.add('border-emerald-500/50', 'text-emerald-400');
+
+                    setTimeout(() => {
+                        btnText.textContent = 'Copy Code';
+                        btnIcon.className = 'fa-regular fa-copy text-xs';
+                        btn.classList.remove('border-emerald-500/50', 'text-emerald-400');
+                    }, 2000);
+                }
+            } catch (err) {
+                console.error('Copy command failed', err);
+            }
+
+            document.body.removeChild(textarea);
+        }
+
+        // Search event listeners
+        document.getElementById('globalSearch').addEventListener('input', (e) => {
+            renderSnippets(e.target.value);
+            document.getElementById('mobileSearch').value = e.target.value;
+        });
+
+        document.getElementById('mobileSearch').addEventListener('input', (e) => {
+            renderSnippets(e.target.value);
+            document.getElementById('globalSearch').value = e.target.value;
+        });
+
+        // Initialize fetch on load
+        window.onload = function() {
+            loadRemoteCsv();
+        };
+    </script>
+</body>
+</html>
