@@ -1,3 +1,4 @@
 Title,Description,Category,RawUrl,CodeContent
 "Elements and LDG List","Query to fetch Elements, LDG, Classification","SQL","https://raw.githubusercontent.com/mytechsys/script/refs/heads/main/BIP/ElementsQueryList.sql",
 "Elements and Input Types List","Elements and Input Types List.","SQL","https://raw.githubusercontent.com/mytechsys/script/refs/heads/main/BIP/PayrollElementsInputValues.sql",
+"MultipleInputValuesHDLLoad","Loading Multiple Input Values into Staging Table","SQL","https://raw.githubusercontent.com/mytechsys/ScriptBase/refs/heads/main/SQL/MultipleInputValuesHDLLoad.sql",
