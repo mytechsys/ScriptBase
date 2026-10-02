@@ -64,3 +64,76 @@ FROM (
 GROUP BY assignment_id, effective_date;
 
 COMMIT;
+
+
+
+INSERT INTO hdl_element_staging (
+    rqsttid,
+    employee_number,
+    effective_date,
+    in1, s1, 
+    in2, s2, 
+    in3, s3, 
+    in4, s4, 
+    in5, s5,
+    in6, s6,
+    in7, s7,
+    in8, s8,
+    in9, s9,
+    in10, s10
+)
+SELECT 
+    m.rqsttid,
+    m.employee_number,
+    m.effective_date,
+    -- Row 1 Pairs
+    MAX(CASE WHEN c.rn = 1 THEN c.input_name END) AS in1,
+    MAX(CASE WHEN c.rn = 1 THEN c.value END) AS s1,
+    -- Row 2 Pairs
+    MAX(CASE WHEN c.rn = 2 THEN c.input_name END) AS in2,
+    MAX(CASE WHEN c.rn = 2 THEN c.value END) AS s2,
+    -- Row 3 Pairs
+    MAX(CASE WHEN c.rn = 3 THEN c.input_name END) AS in3,
+    MAX(CASE WHEN c.rn = 3 THEN c.value END) AS s3,
+    -- Row 4 Pairs
+    MAX(CASE WHEN c.rn = 4 THEN c.input_name END) AS in4,
+    MAX(CASE WHEN c.rn = 4 THEN value END) AS s4,
+    -- Row 5 Pairs
+    MAX(CASE WHEN c.rn = 5 THEN c.input_name END) AS in5,
+    MAX(CASE WHEN c.rn = 5 THEN c.value END) AS s5,
+    -- Row 6 Pairs (buffer for records with more items)
+    MAX(CASE WHEN c.rn = 6 THEN c.input_name END) AS in6,
+    MAX(CASE WHEN c.rn = 6 THEN c.value END) AS s6,
+    -- Row 7 Pairs
+    MAX(CASE WHEN c.rn = 7 THEN c.input_name END) AS in7,
+    MAX(CASE WHEN c.rn = 7 THEN c.value END) AS s7,
+    -- Row 8 Pairs
+    MAX(CASE WHEN c.rn = 8 THEN c.input_name END) AS in8,
+    MAX(CASE WHEN c.rn = 8 THEN c.value END) AS s8,
+    -- Row 9 Pairs
+    MAX(CASE WHEN c.rn = 9 THEN c.input_name END) AS in9,
+    MAX(CASE WHEN c.rn = 9 THEN c.value END) AS s9,
+    -- Row 10 Pairs
+    MAX(CASE WHEN c.rn = 10 THEN c.input_name END) AS in10,
+    MAX(CASE WHEN c.rn = 10 THEN c.value END) AS s10
+FROM request_master m
+LEFT JOIN (
+    -- Number and sequence child records per request ID
+    SELECT 
+        rqsttid,
+        input_name,
+        CASE 
+            WHEN value_type = 'DATE' OR REGEXP_LIKE(value, '^\d{4}/\d{2}/\d{2}$') 
+            THEN TO_CHAR(TO_DATE(value, 'YYYY/MM/DD'), 'YYYY/MM/DD')
+            ELSE value 
+        END AS value,
+        ROW_NUMBER() OVER (PARTITION BY rqsttid ORDER BY input_name) AS rn
+    FROM request_child
+) c ON m.rqsttid = c.rqsttid
+WHERE m.status = 'PENDING' -- Optional: process only pending requests
+GROUP BY 
+    m.rqsttid, 
+    m.employee_number, 
+    m.effective_date;
+
+COMMIT;
