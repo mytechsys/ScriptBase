@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitHub Apps Dashboard</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
+
+    <!-- Header & Search Bar -->
+    <header class="bg-indigo-600 text-white shadow-md">
+        <div class="max-w-7xl mx-auto px-4 py-6 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div>
+                <h1 class="text-2xl font-bold flex items-center gap-2">
+                    <i class="fa-solid fa-cubes"></i> Repository Apps Dashboard
+                </h1>
+                <p class="text-indigo-200 text-sm mt-1">Centralized hub for all applications hosted in this repository</p>
+            </div>
+            <div class="w-full md:w-80 relative">
+                <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
+                    <i class="fa-solid fa-search"></i>
+                </span>
+                <input type="text" id="searchInput" placeholder="Search by name, description or path..." 
+                    class="w-full pl-10 pr-4 py-2 rounded-lg bg-white/10 border border-indigo-400/30 text-white placeholder-indigo-200 focus:outline-none focus:bg-white focus:text-slate-950 focus:placeholder-slate-400 transition">
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="max-w-7xl mx-auto px-4 py-6 flex-grow w-full">
+        
+        <!-- Controls & App Counter -->
+        <div class="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4 border-b pb-4 border-slate-200">
+            <div class="text-sm text-slate-500 font-medium" id="appCounter">
+                Loading applications...
+            </div>
+            <!-- View Mode Switcher -->
+            <div class="flex items-center gap-2 bg-white p-1 rounded-lg shadow-sm border border-slate-200">
+                <button onclick="setViewMode('tiles')" id="btnTiles" title="Tiles View" class="px-3 py-1.5 rounded-md text-sm font-medium transition bg-indigo-600 text-white">
+                    <i class="fa-solid fa-grip"></i> Tiles
+                </button>
+                <button onclick="setViewMode('minList')" id="btnMinList" title="Minimized List" class="px-3 py-1.5 rounded-md text-sm font-medium transition text-slate-600 hover:bg-slate-100">
+                    <i class="fa-solid fa-list"></i> Compact
+                </button>
+                <button onclick="setViewMode('expList')" id="btnExpList" title="Expanded List" class="px-3 py-1.5 rounded-md text-sm font-medium transition text-slate-600 hover:bg-slate-100">
+                    <i class="fa-solid fa-bars-staggered"></i> Detailed
+                </button>
+            </div>
+        </div>
+
+        <!-- Apps Container -->
+        <div id="appsContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <!-- Dynamic content injected here -->
+        </div>
+
+        <!-- Empty State -->
+        <div id="emptyState" class="hidden text-center py-16">
+            <i class="fa-solid fa-folder-open text-4xl text-slate-300 mb-3"></i>
+            <h3 class="text-lg font-medium text-slate-600">No applications found</h3>
+            <p class="text-sm text-slate-400 mt-1">Try adjusting your search query or verify your CSV content.</p>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t border-slate-200 py-4 text-center text-xs text-slate-500">
+        GitHub Pages Global Dashboard &bull; Dynamic CSV Integration
+    </footer>
+
+    <!-- Logic Script -->
+    <script>
+        // ==========================================
+        // CONFIGURATION: Set your GitHub Raw CSV URL here
+        // ==========================================
+        const CSV_URL = 'https://raw.githubusercontent.com/mytechsys/ScriptBase/refs/heads/main/htdocs/csv/app_navigation_source.csv';
+        
+        let allApps = [];
+        let currentView = 'tiles';
+
+        window.addEventListener('DOMContentLoaded', () => {
+            loadApps();
+            document.getElementById('searchInput').addEventListener('input', filterApps);
+        });
+
+        async function loadApps() {
+            try {
+                const response = await fetch(CSV_URL);
+                if (!response.ok) throw new Error('Could not fetch CSV from URL');
+                const csvText = await response.text();
+                allApps = parseCSV(csvText);
+                renderApps(allApps);
+            } catch (error) {
+                console.error(error);
+                document.getElementById('appsContainer').innerHTML = `
+                    <div class="col-span-full bg-red-50 border border-red-200 text-red-700 p-4 rounded-lg flex items-center gap-3">
+                        <i class="fa-solid fa-triangle-exclamation text-xl"></i>
+                        <div>
+                            <strong>Error loading CSV:</strong> Please make sure your <code>CSV_URL</code> constant is correctly set to your repository's public raw CSV link.
+                        </div>
+                    </div>
+                `;
+                document.getElementById('appCounter').innerText = 'Failed to load data';
+            }
+        }
+
+        // Robust CSV parser supporting commas inside quoted strings
+        function parseCSV(text) {
+            const lines = text.split(/\r?\n/).filter(line => line.trim() !== '');
+            if (lines.length === 0) return [];
+            
+            const results = [];
+            for (let i = 1; i < lines.length; i++) {
+                const data = parseCSVLine(lines[i]);
+                if (data.length >= 3) {
+                    results.push({
+                        name: data[0] || 'Untitled',
+                        description: data[1] || 'No description provided.',
+                        path: data[2] || '#'
+                    });
+                }
+            }
+            return results;
+        }
+
+        function parseCSVLine(line) {
+            const result = [];
+            let startValue = 0;
+            let inQuotes = false;
+            for (let i = 0; i < line.length; i++) {
+                if (line[i] === '"') {
+                    inQuotes = !inQuotes;
+                } else if (line[i] === ',' && !inQuotes) {
+                    result.push(line.substring(startValue, i).replace(/^"|"$/g, '').trim());
+                    startValue = i + 1;
+                }
+            }
+            result.push(line.substring(startValue).replace(/^"|"$/g, '').trim());
+            return result;
+        }
+
+        function setViewMode(mode) {
+            currentView = mode;
+            ['tiles', 'minList', 'expList'].forEach(m => {
+                const btn = document.getElementById('btn' + m.charAt(0).toUpperCase() + m.slice(1));
+                if (m === mode) {
+                    btn.className = 'px-3 py-1.5 rounded-md text-sm font-medium transition bg-indigo-600 text-white';
+                } else {
+                    btn.className = 'px-3 py-1.5 rounded-md text-sm font-medium transition text-slate-600 hover:bg-slate-100';
+                }
+            });
+            renderApps(getFilteredApps());
+        }
+
+        function filterApps() {
+            renderApps(getFilteredApps());
+        }
+
+        function getFilteredApps() {
+            const query = document.getElementById('searchInput').value.toLowerCase();
+            return allApps.filter(app => 
+                app.name.toLowerCase().includes(query) ||
+                app.description.toLowerCase().includes(query) ||
+                app.path.toLowerCase().includes(query)
+            );
+        }
+
+        function renderApps(apps) {
+            const container = document.getElementById('appsContainer');
+            const emptyState = document.getElementById('emptyState');
+            const counter = document.getElementById('appCounter');
+
+            counter.innerText = `Showing ${apps.length} of ${allApps.length} applications`;
+
+            if (apps.length === 0) {
+                container.innerHTML = '';
+                emptyState.classList.remove('hidden');
+                return;
+            } else {
+                emptyState.classList.add('hidden');
+            }
+
+            if (currentView === 'tiles') {
+                container.className = 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6';
+                container.innerHTML = apps.map(app => `
+                    <div class="bg-white rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition flex flex-col justify-between p-6">
+                        <div>
+                            <div class="flex justify-between items-start mb-3">
+                                <span class="bg-indigo-50 text-indigo-700 text-xs font-semibold px-2.5 py-1 rounded-md uppercase tracking-wider">App</span>
+                                <span class="text-xs font-mono text-slate-400 bg-slate-100 px-2 py-0.5 rounded">${escapeHtml(app.path)}</span>
+                            </div>
+                            <h3 class="text-lg font-bold text-slate-800 mb-2">${escapeHtml(app.name)}</h3>
+                            <p class="text-slate-600 text-sm mb-4 line-clamp-3">${escapeHtml(app.description)}</p>
+                        </div>
+                        <div class="pt-4 border-t border-slate-100 flex justify-end">
+                            <a href="${escapeHtml(app.path)}" class="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition">
+                                Launch <i class="fa-solid fa-arrow-right text-xs"></i>
+                            </a>
+                        </div>
+                    </div>
+                `).join('');
+            } else if (currentView === 'minList') {
+                container.className = 'flex flex-col gap-2';
+                container.innerHTML = `
+                    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                        <table class="w-full text-left border-collapse">
+                            <thead class="bg-slate-50 border-b border-slate-200 text-xs uppercase text-slate-500 font-semibold">
+                                <tr>
+                                    <th class="px-6 py-3">Application Name</th>
+                                    <th class="px-6 py-3">Path</th>
+                                    <th class="px-6 py-3 text-right">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100 text-sm">
+                                ${apps.map(app => `
+                                    <tr class="hover:bg-slate-50 transition">
+                                        <td class="px-6 py-3 font-semibold text-slate-800">${escapeHtml(app.name)}</td>
+                                        <td class="px-6 py-3 font-mono text-xs text-slate-500">${escapeHtml(app.path)}</td>
+                                        <td class="px-6 py-3 text-right">
+                                            <a href="${escapeHtml(app.path)}" class="inline-flex items-center gap-1.5 text-indigo-600 hover:text-indigo-800 font-medium text-xs bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded transition">
+                                                Launch <i class="fa-solid fa-external-link-alt text-[10px]"></i>
+                                            </a>
+                                        </td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+            } else if (currentView === 'expList') {
+                container.className = 'flex flex-col gap-3';
+                container.innerHTML = apps.map(app => `
+                    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 hover:shadow-md transition">
+                        <div class="space-y-1">
+                            <div class="flex items-center gap-3">
+                                <h3 class="text-base font-bold text-slate-800">${escapeHtml(app.name)}</h3>
+                                <span class="text-xs font-mono text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded">${escapeHtml(app.path)}</span>
+                            </div>
+                            <p class="text-sm text-slate-600">${escapeHtml(app.description)}</p>
+                        </div>
+                        <a href="${escapeHtml(app.path)}" class="shrink-0 inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition">
+                            Launch App <i class="fa-solid fa-arrow-right text-xs"></i>
+                        </a>
+                    </div>
+                `).join('');
+            }
+        }
+
+        function escapeHtml(str) {
+            return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+        }
+    </script>
+</body>
+</html>
