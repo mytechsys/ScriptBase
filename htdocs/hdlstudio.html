@@ -1,0 +1,1953 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Oracle Multi-File HDL & CSV Studio</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'Menlo', 'monospace']
+                    },
+                    colors: {
+                        vs: {
+                            bg: '#1e1e1e',
+                            sidebar: '#252526',
+                            border: '#333333',
+                            hover: '#2a2d2e',
+                            input: '#3c3c3c',
+                            text: '#d4d4d4'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.05); }
+        ::-webkit-scrollbar-thumb { background: rgba(59, 130, 246, 0.5); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(59, 130, 246, 0.8); }
+        .cell-wrap { white-space: pre-wrap; word-break: break-word; min-width: 140px; }
+        .resizer { position: absolute; right: 0; top: 0; bottom: 0; width: 6px; cursor: col-resize; user-select: none; touch-action: none; }
+        .resizer:hover, .resizing { background-color: #3b82f6; }
+        .sticky-col { position: sticky; left: 0; z-index: 20; }
+        tr.dragging { opacity: 0.4; background-color: rgba(59, 130, 246, 0.1); }
+    </style>
+</head>
+<body class="h-full font-sans transition-colors duration-200 bg-slate-50 text-slate-800 dark:bg-[#1e1e1e] dark:text-[#d4d4d4] flex flex-col overflow-hidden" onclick="hideTabContextMenu()">
+
+    <!-- Toast Notifications Container -->
+    <div id="toastContainer" class="fixed top-5 right-5 z-50 flex flex-col space-y-2 pointer-events-none"></div>
+
+    <!-- Right Click Tab Context Menu -->
+    <div id="tabContextMenu" class="fixed hidden z-50 bg-white dark:bg-[#252526] border border-slate-200 dark:border-[#333333] rounded-lg shadow-xl py-1 w-52 text-xs">
+        <button onclick="openZipExportModalForTab()" class="w-full text-left px-3 py-2 hover:bg-slate-100 dark:hover:bg-[#2a2d2e] flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-medium">
+            <i class="fa-solid fa-file-zipper"></i> Download ZIP Archive
+        </button>
+        <button onclick="openFullScreenEditorForTab()" class="w-full text-left px-3 py-2 hover:bg-slate-100 dark:hover:bg-[#2a2d2e] flex items-center gap-2 text-blue-600 dark:text-blue-400 font-medium">
+            <i class="fa-solid fa-expand"></i> Edit Raw File (.dat / .csv)
+        </button>
+        <button onclick="openXsdSchemaModalForTab()" class="w-full text-left px-3 py-2 hover:bg-slate-100 dark:hover:bg-[#2a2d2e] flex items-center gap-2 text-purple-600 dark:text-purple-400 font-medium">
+            <i class="fa-solid fa-code"></i> Generate OIC NXSD Schema
+        </button>
+        <div class="h-px bg-slate-200 dark:bg-[#333333] my-1"></div>
+        <button onclick="openDuplicateModalForTab()" class="w-full text-left px-3 py-2 hover:bg-slate-100 dark:hover:bg-[#2a2d2e] flex items-center gap-2">
+            <i class="fa-solid fa-clone text-amber-500"></i> Duplicate
+        </button>
+        <button onclick="deleteTabFromContextMenu()" class="w-full text-left px-3 py-2 hover:bg-slate-100 dark:hover:bg-[#2a2d2e] flex items-center gap-2 text-red-500">
+            <i class="fa-solid fa-trash-can"></i> Delete
+        </button>
+    </div>
+
+    <!-- Top Header Bar -->
+    <header class="flex-none h-16 border-b border-slate-200 dark:border-[#333333] bg-white dark:bg-[#252526] px-4 flex items-center justify-between z-20 shadow-sm">
+        <div class="flex items-center space-x-3">
+            <button onclick="toggleSidebar()" id="sidebarToggleBtn" title="Toggle Sidebar" class="p-2 rounded-lg border border-slate-200 dark:border-[#333333] bg-white dark:bg-[#1e1e1e] hover:bg-slate-100 dark:hover:bg-[#2a2d2e] transition-colors text-slate-700 dark:text-[#d4d4d4]">
+                <i class="fa-solid fa-bars text-sm"></i>
+            </button>
+            <div class="w-10 h-10 rounded-lg bg-blue-600 flex items-center justify-center text-white shadow-md shadow-blue-500/20">
+                <i class="fa-solid fa-database text-lg"></i>
+            </div>
+            <div>
+                <h1 class="font-bold text-base leading-tight tracking-tight flex items-center gap-2">
+                    Oracle HDL & CSV Studio
+                    <span class="text-xs font-semibold px-2 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">v5.5</span>
+                </h1>
+                <p class="text-xs text-slate-500 dark:text-slate-400">Multi-File Workspace & OIC Integration Studio</p>
+            </div>
+        </div>
+
+        <div class="flex items-center space-x-3">
+            <!-- Clock -->
+            <div class="hidden md:flex items-center space-x-2 px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-[#1e1e1e] border border-slate-200 dark:border-[#333333] text-xs font-medium">
+                <i class="fa-regular fa-clock text-blue-600 dark:text-blue-400"></i>
+                <span id="istClock" class="font-mono">--/--/---- --:--:-- IST</span>
+            </div>
+
+            <!-- Theme Selector -->
+            <select id="themeSelector" onchange="changeTheme(this.value)" class="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-[#333333] bg-white dark:bg-[#1e1e1e] text-xs font-medium focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer">
+                <option value="light">Clean Light</option>
+                <option value="vs-dark">Visual Studio Dark</option>
+                <option value="system">System Default</option>
+            </select>
+
+            <div class="h-6 w-px bg-slate-200 dark:bg-[#333333]"></div>
+
+            <!-- Action Buttons -->
+            <div class="flex items-center space-x-2">
+                <button onclick="openXsdSchemaModal()" class="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-xs font-medium shadow-sm transition-all flex items-center gap-1.5" title="Generate OIC Stage File NXSD Schema">
+                    <i class="fa-solid fa-code"></i> OIC NXSD Generator
+                </button>
+                <button onclick="openZipExportModal()" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-medium shadow-sm transition-all flex items-center gap-1.5" title="Download ZIP Archive (.dat / .csv / .xlsx)">
+                    <i class="fa-solid fa-file-archive"></i> Download Files
+                </button>
+                <button onclick="openImportModal()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-medium shadow-sm transition-all flex items-center gap-1.5">
+                    <i class="fa-solid fa-cloud-arrow-down"></i> Import / GitHub
+                </button>
+                <button onclick="exportWorkspaceZip()" title="Backup Workspace" class="p-2 rounded-lg border border-slate-200 dark:border-[#333333] bg-white dark:bg-[#1e1e1e] hover:bg-slate-100 dark:hover:bg-[#2a2d2e] transition-colors text-slate-700 dark:text-[#d4d4d4] text-xs">
+                    <i class="fa-solid fa-file-zipper text-blue-600 dark:text-blue-400"></i>
+                </button>
+                <label title="Restore Workspace" class="p-2 rounded-lg border border-slate-200 dark:border-[#333333] bg-white dark:bg-[#1e1e1e] hover:bg-slate-100 dark:hover:bg-[#2a2d2e] transition-colors text-slate-700 dark:text-[#d4d4d4] text-xs cursor-pointer">
+                    <i class="fa-solid fa-folder-open text-blue-600 dark:text-blue-400"></i>
+                    <input type="file" accept=".zip" class="hidden" onchange="importWorkspaceZip(event)">
+                </label>
+            </div>
+        </div>
+    </header>
+
+    <div class="flex-1 flex overflow-hidden">
+        <!-- Sidebar -->
+        <aside id="sidebarPanel" class="w-72 flex-none border-r border-slate-200 dark:border-[#333333] bg-slate-100/70 dark:bg-[#252526] flex flex-col z-10 transition-all duration-200">
+            <div class="p-3 border-b border-slate-200 dark:border-[#333333] flex items-center justify-between gap-2">
+                <div class="relative flex-1">
+                    <i class="fa-solid fa-magnifying-glass absolute left-2.5 top-2.5 text-xs text-slate-400"></i>
+                    <input type="text" id="tabSearch" placeholder="Search files..." oninput="renderTabs()" class="w-full pl-8 pr-3 py-1.5 bg-white dark:bg-[#1e1e1e] border border-slate-200 dark:border-[#333333] rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-blue-500">
+                </div>
+                <button onclick="createNewFileModal()" title="New File" class="p-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs transition-colors flex-none">
+                    <i class="fa-solid fa-plus"></i>
+                </button>
+            </div>
+
+            <div id="sidebarTabsList" class="flex-1 overflow-y-auto p-2 space-y-1"></div>
+
+            <div class="p-3 border-t border-slate-200 dark:border-[#333333] text-[11px] text-slate-500 dark:text-slate-400 flex justify-between items-center bg-white/50 dark:bg-[#252526]">
+                <span id="fileCountLabel">0 files loaded</span>
+                <button onclick="clearAllFiles()" class="text-red-500 hover:underline">Clear All</button>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="flex-1 flex flex-col overflow-hidden bg-white dark:bg-[#1e1e1e]">
+            <!-- File Toolbar -->
+            <div id="fileToolbar" class="flex-none px-4 py-2.5 border-b border-slate-200 dark:border-[#333333] bg-slate-50/50 dark:bg-[#252526]/50 flex flex-wrap items-center justify-between gap-3 hidden">
+                <div class="flex items-center space-x-3">
+                    <input type="text" id="activeFileName" onchange="updateActiveFileName(this.value)" class="font-bold text-sm bg-transparent border-b border-transparent hover:border-slate-300 dark:hover:border-slate-700 focus:border-blue-500 focus:outline-none px-1 py-0.5">
+                    <span id="activeFileTypeBadge" class="text-[10px] font-semibold px-2 py-0.5 rounded uppercase tracking-wide"></span>
+                    <span id="activeFileStats" class="text-xs text-slate-500 dark:text-slate-400 font-mono"></span>
+                </div>
+
+                <div class="flex items-center space-x-2 flex-wrap">
+                    <!-- Filter with Clear Symbol (Cross Button) -->
+                    <div class="relative flex items-center">
+                        <i class="fa-solid fa-filter absolute left-2.5 text-xs text-slate-400"></i>
+                        <input type="text" id="dataFilterInput" placeholder="Filter rows..." oninput="toggleClearFilterBtn(); renderActiveView();" class="w-44 pl-7 pr-7 py-1 bg-white dark:bg-[#1e1e1e] border border-slate-200 dark:border-[#333333] rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-blue-500">
+                        <button id="clearFilterBtn" onclick="clearDataFilter()" class="hidden absolute right-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xs">
+                            <i class="fa-solid fa-circle-xmark"></i>
+                        </button>
+                    </div>
+
+                    <div class="bg-slate-200 dark:bg-[#333333] p-0.5 rounded-lg flex text-xs">
+                        <button onclick="setViewMode('tabular')" id="btnTabularView" class="px-2.5 py-1 rounded-md font-medium transition-colors bg-white dark:bg-[#1e1e1e] text-blue-600 dark:text-blue-400 shadow-xs">
+                            <i class="fa-solid fa-table mr-1"></i> Table
+                        </button>
+                        <button onclick="setViewMode('vertical')" id="btnVerticalView" class="px-2.5 py-1 rounded-md font-medium transition-colors text-slate-600 dark:text-slate-400">
+                            <i class="fa-solid fa-list-ul mr-1"></i> Form
+                        </button>
+                    </div>
+
+                    <div class="h-5 w-px bg-slate-200 dark:bg-[#333333]"></div>
+
+                    <button onclick="addRow()" class="px-2.5 py-1 bg-slate-100 dark:bg-[#333333] hover:bg-slate-200 dark:hover:bg-[#3c3c3c] border border-slate-200 dark:border-[#333333] rounded-lg text-xs font-medium flex items-center gap-1">
+                        <i class="fa-solid fa-plus text-green-500"></i> Row
+                    </button>
+                    <button onclick="addColumn()" class="px-2.5 py-1 bg-slate-100 dark:bg-[#333333] hover:bg-slate-200 dark:hover:bg-[#3c3c3c] border border-slate-200 dark:border-[#333333] rounded-lg text-xs font-medium flex items-center gap-1">
+                        <i class="fa-solid fa-plus text-blue-500"></i> Column
+                    </button>
+                    <button onclick="openXsdSchemaModal(activeFileId)" class="px-2.5 py-1 bg-purple-100 dark:bg-purple-900/30 hover:bg-purple-200 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 rounded-lg text-xs font-medium flex items-center gap-1" title="Generate NXSD Schema for OIC Stage File Operation">
+                        <i class="fa-solid fa-file-code"></i> OIC NXSD
+                    </button>
+                    <button onclick="openFullScreenEditorModal(activeFileId)" class="px-2.5 py-1 bg-slate-100 dark:bg-[#333333] hover:bg-slate-200 dark:hover:bg-[#3c3c3c] border border-slate-200 dark:border-[#333333] rounded-lg text-xs font-medium flex items-center gap-1 text-purple-500" title="Full Screen Raw Editor">
+                        <i class="fa-solid fa-pen-to-square"></i> Raw Editor
+                    </button>
+                    <button onclick="openDuplicateModal()" class="px-2.5 py-1 bg-slate-100 dark:bg-[#333333] hover:bg-slate-200 dark:hover:bg-[#3c3c3c] border border-slate-200 dark:border-[#333333] rounded-lg text-xs font-medium flex items-center gap-1 text-amber-500" title="Duplicate Active File">
+                        <i class="fa-solid fa-clone"></i> Duplicate
+                    </button>
+                    <button onclick="openCopyModal()" class="px-2.5 py-1 bg-slate-100 dark:bg-[#333333] hover:bg-slate-200 dark:hover:bg-[#3c3c3c] border border-slate-200 dark:border-[#333333] rounded-lg text-xs font-medium flex items-center gap-1 text-blue-500">
+                        <i class="fa-solid fa-copy"></i> Copy Data
+                    </button>
+
+                    <div class="relative">
+                        <button onclick="toggleExportMenu()" class="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-medium shadow-sm flex items-center gap-1.5">
+                            <i class="fa-solid fa-download"></i> Export <i class="fa-solid fa-chevron-down text-[10px]"></i>
+                        </button>
+                        <div id="exportMenu" class="absolute right-0 mt-1 w-56 bg-white dark:bg-[#252526] border border-slate-200 dark:border-[#333333] rounded-lg shadow-xl py-1 hidden z-30">
+                            <div class="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">Quick Download</div>
+                            <button onclick="exportFile('dat', false)" class="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-100 dark:hover:bg-[#2a2d2e] flex items-center gap-2">
+                                <i class="fa-solid fa-file-code text-blue-500"></i> Pipe Delimited (.dat)
+                            </button>
+                            <button onclick="exportFile('csv', false)" class="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-100 dark:hover:bg-[#2a2d2e] flex items-center gap-2">
+                                <i class="fa-solid fa-file-csv text-green-500"></i> Comma Separated (.csv)
+                            </button>
+                            <button onclick="exportFile('xlsx', false)" class="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-100 dark:hover:bg-[#2a2d2e] flex items-center gap-2">
+                                <i class="fa-solid fa-file-excel text-emerald-500"></i> Excel Workbook (.xlsx)
+                            </button>
+                            <button onclick="exportFile('xsd', false)" class="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-100 dark:hover:bg-[#2a2d2e] flex items-center gap-2 border-b border-slate-200 dark:border-[#333333] text-purple-600 dark:text-purple-400 pb-2">
+                                <i class="fa-solid fa-code"></i> OIC NXSD Schema (.xsd)
+                            </button>
+
+                            <div class="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 pt-2">Save To Preferred Folder</div>
+                            <button onclick="exportFile('dat', true)" class="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-100 dark:hover:bg-[#2a2d2e] flex items-center gap-2">
+                                <i class="fa-solid fa-folder-plus text-blue-500"></i> Save .dat to Folder...
+                            </button>
+                            <button onclick="exportFile('csv', true)" class="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-100 dark:hover:bg-[#2a2d2e] flex items-center gap-2">
+                                <i class="fa-solid fa-folder-plus text-green-500"></i> Save .csv to Folder...
+                            </button>
+                            <button onclick="exportFile('xlsx', true)" class="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-100 dark:hover:bg-[#2a2d2e] flex items-center gap-2">
+                                <i class="fa-solid fa-folder-plus text-emerald-500"></i> Save .xlsx to Folder...
+                            </button>
+                            <button onclick="exportFile('xsd', true)" class="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-100 dark:hover:bg-[#2a2d2e] flex items-center gap-2 text-purple-600 dark:text-purple-400">
+                                <i class="fa-solid fa-folder-plus"></i> Save .xsd to Folder...
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Empty Workspace View -->
+            <div id="emptyState" class="flex-1 flex flex-col items-center justify-center p-8 text-center">
+                <div class="w-16 h-16 rounded-2xl bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 flex items-center justify-center text-2xl mb-4 shadow-inner">
+                    <i class="fa-solid fa-folder-open"></i>
+                </div>
+                <h3 class="text-base font-semibold mb-1">No file selected</h3>
+                <p class="text-xs text-slate-500 dark:text-slate-400 max-w-sm mb-6">Create a new file, import local documents, or load directly from GitHub raw URLs.</p>
+                <div class="flex gap-3">
+                    <button onclick="createNewFileModal()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-medium shadow-sm">
+                        Create New File
+                    </button>
+                    <button onclick="openImportModal()" class="px-4 py-2 bg-slate-200 dark:bg-[#333333] hover:bg-slate-300 dark:hover:bg-[#3c3c3c] rounded-lg text-xs font-medium">
+                        Import Data
+                    </button>
+                </div>
+            </div>
+
+            <!-- Table View Container -->
+            <div id="tabularViewContainer" class="flex-1 overflow-auto relative hidden">
+                <table id="dataTable" class="w-full border-collapse text-xs table-fixed">
+                    <thead id="tableHead" class="sticky top-0 bg-slate-100 dark:bg-[#252526] z-30 border-b border-slate-200 dark:border-[#333333] shadow-xs"></thead>
+                    <tbody id="tableBody" class="divide-y divide-slate-200 dark:divide-[#333333]"></tbody>
+                </table>
+            </div>
+
+            <!-- Record View Container -->
+            <div id="verticalViewContainer" class="flex-1 overflow-y-auto p-6 hidden">
+                <div id="verticalRecordsWrapper" class="max-w-4xl mx-auto space-y-6"></div>
+            </div>
+        </main>
+    </div>
+
+    <!-- OIC XSD Schema Generation Modal -->
+    <div id="xsdSchemaModal" class="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-xs flex flex-col hidden">
+        <div class="flex-none h-14 bg-white dark:bg-[#252526] border-b border-slate-200 dark:border-[#333333] px-6 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <i class="fa-solid fa-code text-purple-500 text-lg"></i>
+                <h2 id="xsdModalTitle" class="font-bold text-sm">OIC Stage File NXSD Schema Generator (Piped Format)</h2>
+            </div>
+            <div class="flex items-center space-x-3">
+                <button onclick="copyXsdToClipboard()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-medium shadow-sm flex items-center gap-1.5">
+                    <i class="fa-solid fa-copy"></i> Copy NXSD Schema
+                </button>
+                <button onclick="downloadXsdFile(false)" class="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-xs font-medium shadow-sm flex items-center gap-1.5">
+                    <i class="fa-solid fa-download"></i> Download (.xsd)
+                </button>
+                <button onclick="downloadXsdFile(true)" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-medium shadow-sm flex items-center gap-1.5" title="Pick target directory to save file">
+                    <i class="fa-solid fa-folder-plus"></i> Save Schema To Folder...
+                </button>
+                <button onclick="closeXsdSchemaModal()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-base p-1">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+        </div>
+        <div class="flex-1 p-4 bg-slate-100 dark:bg-[#1e1e1e] flex flex-col space-y-4 overflow-hidden">
+            <!-- OIC Stage File Instructions Banner -->
+            <div class="p-3 bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/50 rounded-xl text-xs space-y-1">
+                <div class="font-semibold text-purple-800 dark:text-purple-300 flex items-center gap-2">
+                    <i class="fa-solid fa-circle-info"></i> How to use in Oracle Integration Cloud (OIC) Stage File Operation:
+                </div>
+                <p class="text-purple-700 dark:text-purple-400 leading-relaxed">
+                    1. In OIC, add a <strong>Stage File</strong> action and choose <strong>Write File</strong> operation.<br>
+                    2. Select <strong>Sample NXSD Schema</strong> as the schema format type.<br>
+                    3. Download or copy this generated NXSD schema and upload it in the OIC wizard.<br>
+                    4. Map your source payload to this generated structure. OIC will output valid pipe-delimited (.dat) files separated by <code>|</code> and ended with <code>${eol}</code> automatically.
+                </p>
+            </div>
+
+            <textarea id="xsdOutputTextarea" readonly class="w-full flex-1 p-4 font-mono text-xs bg-white dark:bg-[#252526] border border-slate-200 dark:border-[#333333] rounded-xl focus:outline-none focus:ring-1 focus:ring-purple-500 resize-none shadow-inner leading-relaxed"></textarea>
+        </div>
+    </div>
+
+    <!-- Full Screen Editor Modal -->
+    <div id="fullScreenEditorModal" class="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-xs flex flex-col hidden">
+        <div class="flex-none h-14 bg-white dark:bg-[#252526] border-b border-slate-200 dark:border-[#333333] px-6 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <i class="fa-solid fa-file-pen text-blue-500 text-lg"></i>
+                <h2 id="fsEditorTitle" class="font-bold text-sm">Full Screen Raw Data Editor</h2>
+            </div>
+            <div class="flex items-center space-x-4">
+                <div class="flex items-center space-x-2">
+                    <label class="text-xs font-semibold text-slate-500 dark:text-slate-400">View/Format:</label>
+                    <div class="bg-slate-200 dark:bg-[#333333] p-0.5 rounded-lg flex text-xs">
+                        <button onclick="switchFullScreenEditorFormat('dat')" id="btnFsFormatDat" class="px-3 py-1 rounded-md font-medium transition-colors">.dat (Pipe)</button>
+                        <button onclick="switchFullScreenEditorFormat('csv')" id="btnFsFormatCsv" class="px-3 py-1 rounded-md font-medium transition-colors">.csv (Comma)</button>
+                    </div>
+                </div>
+                <button onclick="saveFullScreenEditorData()" class="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-medium shadow-sm flex items-center gap-1.5">
+                    <i class="fa-solid fa-floppy-disk"></i> Save & Apply Changes
+                </button>
+                <button onclick="closeFullScreenEditorModal()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-base p-1">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+        </div>
+        <div class="flex-1 p-4 bg-slate-100 dark:bg-[#1e1e1e] flex flex-col">
+            <textarea id="fsRawTextarea" class="w-full flex-1 p-4 font-mono text-xs bg-white dark:bg-[#252526] border border-slate-200 dark:border-[#333333] rounded-xl focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none shadow-inner leading-relaxed"></textarea>
+        </div>
+    </div>
+
+    <!-- Duplicate File Modal -->
+    <div id="duplicateFileModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white dark:bg-[#252526] border border-slate-200 dark:border-[#333333] rounded-2xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col">
+            <div class="px-6 py-4 border-b border-slate-200 dark:border-[#333333] flex justify-between items-center">
+                <h3 class="font-bold text-sm">Duplicate File</h3>
+                <button onclick="closeDuplicateModal()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><i class="fa-solid fa-xmark text-base"></i></button>
+            </div>
+            <div class="p-6 space-y-4">
+                <input type="hidden" id="duplicateSourceFileId">
+                <div>
+                    <label class="text-xs font-semibold mb-1 block">New File Name</label>
+                    <input type="text" id="duplicateFileNameInput" class="w-full px-3 py-2 bg-slate-50 dark:bg-[#1e1e1e] border border-slate-200 dark:border-[#333333] rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold mb-1 block">Format Type</label>
+                    <select id="duplicateFileTypeSelect" class="w-full px-3 py-2 bg-slate-50 dark:bg-[#1e1e1e] border border-slate-200 dark:border-[#333333] rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-blue-500">
+                        <option value="dat">Oracle HDL (.dat)</option>
+                        <option value="csv">Comma Separated (.csv)</option>
+                        <option value="xlsx">Excel Workbook (.xlsx)</option>
+                    </select>
+                </div>
+            </div>
+            <div class="px-6 py-3 bg-slate-50 dark:bg-[#252526] border-t border-slate-200 dark:border-[#333333] flex justify-end gap-2">
+                <button onclick="closeDuplicateModal()" class="px-3 py-1.5 text-xs bg-slate-200 dark:bg-[#333333] rounded-lg">Cancel</button>
+                <button onclick="confirmDuplicateFile()" class="px-4 py-1.5 text-xs bg-amber-600 hover:bg-amber-700 text-white font-medium rounded-lg shadow-sm">Duplicate</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ZIP Download Customizer Modal -->
+    <div id="zipExportModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white dark:bg-[#252526] border border-slate-200 dark:border-[#333333] rounded-2xl w-full max-w-3xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+            <div class="px-6 py-4 border-b border-slate-200 dark:border-[#333333] flex justify-between items-center">
+                <div>
+                    <h3 class="font-bold text-sm">Download Files Package (ZIP)</h3>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Define custom filenames, format extensions, and the ZIP package name before download.</p>
+                </div>
+                <button onclick="closeZipExportModal()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><i class="fa-solid fa-xmark text-base"></i></button>
+            </div>
+            <div class="p-6 overflow-y-auto space-y-4">
+                <div>
+                    <label class="text-xs font-semibold mb-1 block">ZIP Archive Filename</label>
+                    <div class="flex items-center gap-2">
+                        <input type="text" id="zipArchiveNameInput" placeholder="oracle_export_files" class="flex-1 px-3 py-2 bg-slate-50 dark:bg-[#1e1e1e] border border-slate-200 dark:border-[#333333] rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono">
+                        <span class="text-xs font-semibold text-slate-400 font-mono">.zip</span>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="text-xs font-semibold mb-2 block">Configure Individual Files:</label>
+                    <div id="zipExportFilesList" class="space-y-2 max-h-60 overflow-y-auto p-2 border border-slate-200 dark:border-[#333333] rounded-xl bg-slate-50/50 dark:bg-[#1e1e1e]"></div>
+                </div>
+            </div>
+            <div class="px-6 py-3 bg-slate-50 dark:bg-[#252526] border-t border-slate-200 dark:border-[#333333] flex justify-end gap-2">
+                <button onclick="closeZipExportModal()" class="px-3 py-1.5 text-xs bg-slate-200 dark:bg-[#333333] rounded-lg">Cancel</button>
+                <button onclick="generateCustomZipExport(false)" class="px-4 py-1.5 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg shadow-sm flex items-center gap-1.5">
+                    <i class="fa-solid fa-file-zipper"></i> Download ZIP
+                </button>
+                <button onclick="generateCustomZipExport(true)" class="px-4 py-1.5 text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg shadow-sm flex items-center gap-1.5" title="Save ZIP to custom folder target">
+                    <i class="fa-solid fa-folder-plus"></i> Save ZIP to Folder...
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Copy Raw Text Modal -->
+    <div id="copyModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white dark:bg-[#252526] border border-slate-200 dark:border-[#333333] rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col">
+            <div class="px-6 py-4 border-b border-slate-200 dark:border-[#333333] flex justify-between items-center">
+                <h3 class="font-bold text-sm">Copy Raw Data</h3>
+                <button onclick="closeCopyModal()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><i class="fa-solid fa-xmark text-base"></i></button>
+            </div>
+            <div class="p-6 space-y-4">
+                <div class="flex items-center gap-3">
+                    <label class="text-xs font-semibold">Format:</label>
+                    <select id="copyFormatSelect" onchange="updateCopyTextContent()" class="px-3 py-1.5 bg-slate-50 dark:bg-[#1e1e1e] border border-slate-200 dark:border-[#333333] rounded-lg text-xs focus:outline-none">
+                        <option value="dat">Pipe Delimited (.dat)</option>
+                        <option value="csv">Comma Separated (.csv)</option>
+                    </select>
+                </div>
+                <textarea id="copyTextarea" readonly rows="10" class="w-full bg-slate-50 dark:bg-[#1e1e1e] border border-slate-200 dark:border-[#333333] rounded-lg p-3 font-mono text-xs focus:outline-none resize-none"></textarea>
+            </div>
+            <div class="px-6 py-3 bg-slate-50 dark:bg-[#252526] border-t border-slate-200 dark:border-[#333333] flex justify-end gap-2">
+                <button onclick="closeCopyModal()" class="px-3 py-1.5 text-xs bg-slate-200 dark:bg-[#333333] rounded-lg">Close</button>
+                <button onclick="executeCopyData()" class="px-4 py-1.5 text-xs bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg shadow-sm">Copy to Clipboard</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Import Modal -->
+    <div id="importModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white dark:bg-[#252526] border border-slate-200 dark:border-[#333333] rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col">
+            <div class="px-6 py-4 border-b border-slate-200 dark:border-[#333333] flex justify-between items-center">
+                <h3 class="font-bold text-sm">Import Data / GitHub Raw URL</h3>
+                <button onclick="closeImportModal()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><i class="fa-solid fa-xmark text-base"></i></button>
+            </div>
+            <div class="p-6 space-y-5">
+                <div class="space-y-2">
+                    <label class="text-xs font-semibold">GitHub Raw File URL</label>
+                    <div class="flex gap-2">
+                        <input type="url" id="githubUrlInput" placeholder="https://raw.githubusercontent.com/user/repo/main/data.dat" class="flex-1 px-3 py-2 bg-slate-50 dark:bg-[#1e1e1e] border border-slate-200 dark:border-[#333333] rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-blue-500">
+                        <button onclick="loadFromGitHubPromptType()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-medium shadow-sm">Fetch</button>
+                    </div>
+                </div>
+                <div class="relative flex py-2 items-center">
+                    <div class="flex-grow border-t border-slate-200 dark:border-[#333333]"></div>
+                    <span class="flex-shrink mx-4 text-slate-400 text-xs">or upload local file</span>
+                    <div class="flex-grow border-t border-slate-200 dark:border-[#333333]"></div>
+                </div>
+                <div class="border-2 border-dashed border-slate-300 dark:border-[#333333] rounded-xl p-6 text-center hover:border-blue-500 transition-colors cursor-pointer relative">
+                    <input type="file" id="localFileInput" accept=".dat,.csv,.txt,.xlsx,.xls" class="absolute inset-0 opacity-0 cursor-pointer" onchange="handleLocalFileUpload(event)">
+                    <i class="fa-solid fa-file-arrow-up text-3xl text-blue-500 mb-2"></i>
+                    <p class="text-xs font-medium">Click to upload or drag & drop</p>
+                    <p class="text-[11px] text-slate-400 mt-1">Supports .dat, .csv, .xlsx, .xls</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- File Format Selector -->
+    <div id="fileTypePromptModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white dark:bg-[#252526] border border-slate-200 dark:border-[#333333] rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden flex flex-col">
+            <div class="px-6 py-4 border-b border-slate-200 dark:border-[#333333]">
+                <h3 class="font-bold text-sm">Select File Format</h3>
+                <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Choose parsing method for remote text.</p>
+            </div>
+            <div class="p-6 space-y-3">
+                <button onclick="confirmFileTypeSelection('dat')" class="w-full p-3 bg-slate-100 dark:bg-[#1e1e1e] hover:bg-blue-50 border border-slate-200 dark:border-[#333333] hover:border-blue-500 rounded-xl text-left transition-all flex items-center justify-between group">
+                    <div>
+                        <div class="font-semibold text-xs group-hover:text-blue-500">Pipe / Delimited (.dat)</div>
+                        <div class="text-[11px] text-slate-500">Oracle HDL pipe-separated file</div>
+                    </div>
+                    <i class="fa-solid fa-chevron-right text-xs text-slate-400 group-hover:text-blue-500"></i>
+                </button>
+                <button onclick="confirmFileTypeSelection('csv')" class="w-full p-3 bg-slate-100 dark:bg-[#1e1e1e] hover:bg-blue-50 border border-slate-200 dark:border-[#333333] hover:border-blue-500 rounded-xl text-left transition-all flex items-center justify-between group">
+                    <div>
+                        <div class="font-semibold text-xs group-hover:text-blue-500">Comma Separated (.csv)</div>
+                        <div class="text-[11px] text-slate-500">Standard CSV spreadsheet format</div>
+                    </div>
+                    <i class="fa-solid fa-chevron-right text-xs text-slate-400 group-hover:text-blue-500"></i>
+                </button>
+            </div>
+            <div class="px-6 py-3 bg-slate-50 dark:bg-[#252526] border-t border-slate-200 dark:border-[#333333] flex justify-end">
+                <button onclick="closeFileTypePrompt()" class="px-3 py-1.5 text-xs text-slate-500 hover:text-slate-700">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- New File Dialog -->
+    <div id="newFileModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white dark:bg-[#252526] border border-slate-200 dark:border-[#333333] rounded-2xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col">
+            <div class="px-6 py-4 border-b border-slate-200 dark:border-[#333333] flex justify-between items-center">
+                <h3 class="font-bold text-sm">Create New File</h3>
+                <button onclick="closeNewFileModal()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><i class="fa-solid fa-xmark text-base"></i></button>
+            </div>
+            <div class="p-6 space-y-4">
+                <div>
+                    <label class="text-xs font-semibold mb-1 block">File Name</label>
+                    <input type="text" id="newFileNameInput" value="Worker.dat" class="w-full px-3 py-2 bg-slate-50 dark:bg-[#1e1e1e] border border-slate-200 dark:border-[#333333] rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold mb-1 block">Format Type</label>
+                    <select id="newFileTypeSelect" class="w-full px-3 py-2 bg-slate-50 dark:bg-[#1e1e1e] border border-slate-200 dark:border-[#333333] rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-blue-500">
+                        <option value="dat">Oracle HDL (.dat)</option>
+                        <option value="csv">Comma Separated (.csv)</option>
+                        <option value="xlsx">Excel Workbook (.xlsx)</option>
+                    </select>
+                </div>
+            </div>
+            <div class="px-6 py-3 bg-slate-50 dark:bg-[#252526] border-t border-slate-200 dark:border-[#333333] flex justify-end gap-2">
+                <button onclick="closeNewFileModal()" class="px-3 py-1.5 text-xs bg-slate-200 dark:bg-[#333333] rounded-lg">Cancel</button>
+                <button onclick="confirmCreateNewFile()" class="px-4 py-1.5 text-xs bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg shadow-sm">Create</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let workspaceFiles = [];
+        let activeFileId = null;
+        let contextTargetFileId = null;
+        let fsEditingFileId = null;
+        let xsdTargetFileId = null;
+        let fsCurrentFormat = 'dat';
+        let pendingGitHubContent = null;
+        let columnWidths = {};
+        let draggedRowIndex = null;
+
+        window.onload = function() {
+            initTheme();
+            startISTClock();
+            loadFromLocalStorage();
+            renderTabs();
+            if (workspaceFiles.length > 0 && !activeFileId) {
+                switchToFile(workspaceFiles[0].id);
+            }
+        };
+
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            const bg = type === 'success' ? 'bg-emerald-600 text-white' : type === 'error' ? 'bg-red-600 text-white' : 'bg-blue-600 text-white';
+            toast.className = `${bg} px-4 py-2.5 rounded-xl shadow-lg text-xs font-medium pointer-events-auto flex items-center gap-2 transform translate-y-2 opacity-0 transition-all duration-300`;
+            toast.innerHTML = `<i class="fa-solid ${type === 'success' ? 'fa-circle-check' : 'fa-circle-exclamation'}"></i> <span>${message}</span>`;
+            container.appendChild(toast);
+            setTimeout(() => { toast.classList.remove('translate-y-2', 'opacity-0'); }, 10);
+            setTimeout(() => {
+                toast.classList.add('translate-y-2', 'opacity-0');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        function startISTClock() {
+            function updateClock() {
+                const now = new Date();
+                const options = { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false };
+                const formatter = new Intl.DateTimeFormat([], options);
+                document.getElementById('istClock').textContent = formatter.format(now) + ' IST';
+            }
+            updateClock();
+            setInterval(updateClock, 1000);
+        }
+
+        function initTheme() {
+            const saved = localStorage.getItem('oracle_studio_theme') || 'system';
+            document.getElementById('themeSelector').value = saved;
+            applyTheme(saved);
+        }
+
+        function changeTheme(theme) {
+            localStorage.setItem('oracle_studio_theme', theme);
+            applyTheme(theme);
+        }
+
+        function applyTheme(theme) {
+            if (theme === 'vs-dark') {
+                document.documentElement.classList.add('dark');
+                document.body.className = "h-full font-sans transition-colors duration-200 bg-[#1e1e1e] text-[#d4d4d4] flex flex-col overflow-hidden";
+            } else if (theme === 'light') {
+                document.documentElement.classList.remove('dark');
+                document.body.className = "h-full font-sans transition-colors duration-200 bg-slate-50 text-slate-800 flex flex-col overflow-hidden";
+            } else {
+                const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                if (prefersDark) {
+                    document.documentElement.classList.add('dark');
+                    document.body.className = "h-full font-sans transition-colors duration-200 bg-[#1e1e1e] text-[#d4d4d4] flex flex-col overflow-hidden";
+                } else {
+                    document.documentElement.classList.remove('dark');
+                    document.body.className = "h-full font-sans transition-colors duration-200 bg-slate-50 text-slate-800 flex flex-col overflow-hidden";
+                }
+            }
+        }
+
+        function toggleClearFilterBtn() {
+            const val = document.getElementById('dataFilterInput').value;
+            const btn = document.getElementById('clearFilterBtn');
+            if (val) btn.classList.remove('hidden');
+            else btn.classList.add('hidden');
+        }
+
+        function clearDataFilter() {
+            document.getElementById('dataFilterInput').value = '';
+            toggleClearFilterBtn();
+            renderActiveView();
+        }
+
+        function saveToLocalStorage() {
+            localStorage.setItem('oracle_studio_files', JSON.stringify(workspaceFiles));
+            localStorage.setItem('oracle_studio_active', activeFileId || '');
+            localStorage.setItem('oracle_studio_colwidths', JSON.stringify(columnWidths));
+        }
+
+        function loadFromLocalStorage() {
+            const data = localStorage.getItem('oracle_studio_files');
+            const act = localStorage.getItem('oracle_studio_active');
+            const cw = localStorage.getItem('oracle_studio_colwidths');
+            if (cw) { try { columnWidths = JSON.parse(cw); } catch(e) {} }
+            if (data) {
+                try {
+                    workspaceFiles = JSON.parse(data);
+                    if (act && workspaceFiles.some(f => f.id === act)) activeFileId = act;
+                } catch(e) {}
+            }
+            if (workspaceFiles.length === 0) {
+                workspaceFiles.push({
+                    id: 'file_' + Date.now(),
+                    name: 'Worker.dat',
+                    type: 'dat',
+                    headers: ['METADATA', 'Worker', 'EffectiveStartDate', 'SourceSystemId'],
+                    rows: [
+                        ['METADATA', 'Worker', 'EffectiveStartDate', 'SourceSystemId'],
+                        ['MERGE', 'Worker', '2023/01/01', 'EMP1001'],
+                        ['MERGE', 'Worker', '2023/06/15', 'EMP1002']
+                    ],
+                    viewMode: 'tabular'
+                });
+                activeFileId = workspaceFiles[0].id;
+            }
+        }
+
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebarPanel');
+            sidebar.classList.toggle('w-72');
+            sidebar.classList.toggle('w-0');
+            sidebar.classList.toggle('overflow-hidden');
+        }
+
+        function handleTabContextMenu(e, fileId) {
+            e.preventDefault();
+            contextTargetFileId = fileId;
+            const menu = document.getElementById('tabContextMenu');
+            menu.style.top = `${e.clientY}px`;
+            menu.style.left = `${e.clientX}px`;
+            menu.classList.remove('hidden');
+        }
+
+        function hideTabContextMenu() {
+            const menu = document.getElementById('tabContextMenu');
+            if (menu) menu.classList.add('hidden');
+        }
+
+        function renderTabs() {
+            const container = document.getElementById('sidebarTabsList');
+            const searchVal = (document.getElementById('tabSearch').value || '').toLowerCase();
+            const filtered = workspaceFiles.filter(f => f.name.toLowerCase().includes(searchVal));
+
+            document.getElementById('fileCountLabel').textContent = `${workspaceFiles.length} file(s)`;
+
+            if (filtered.length === 0) {
+                container.innerHTML = `<div class="p-4 text-center text-xs text-slate-400">No matching files</div>`;
+                return;
+            }
+
+            container.innerHTML = filtered.map(file => {
+                const isActive = file.id === activeFileId;
+                const badgeColor = file.type === 'dat' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' : 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300';
+                return `
+                    <div onclick="switchToFile('${file.id}')" oncontextmenu="handleTabContextMenu(event, '${file.id}')" class="group flex items-center justify-between px-3 py-2.5 rounded-xl cursor-pointer transition-all ${isActive ? 'bg-blue-600 text-white shadow-sm' : 'hover:bg-slate-200/60 dark:hover:bg-[#2a2d2e]'}">
+                        <div class="flex items-center space-x-2.5 overflow-hidden">
+                            <i class="fa-solid fa-file-lines text-xs ${isActive ? 'text-white' : 'text-slate-400'}"></i>
+                            <span class="text-xs font-medium truncate">${file.name}</span>
+                        </div>
+                        <div class="flex items-center space-x-1 flex-none">
+                            <span class="text-[9px] px-1.5 py-0.5 rounded uppercase font-semibold mr-1 ${isActive ? 'bg-white/20 text-white' : badgeColor}">${file.type}</span>
+                            <button onclick="event.stopPropagation(); openDuplicateModal('${file.id}')" class="opacity-0 group-hover:opacity-100 p-1 hover:text-amber-300 transition-opacity text-xs" title="Duplicate file"><i class="fa-solid fa-clone"></i></button>
+                            <button onclick="event.stopPropagation(); deleteFile('${file.id}')" class="opacity-0 group-hover:opacity-100 p-1 hover:text-red-400 transition-opacity text-xs" title="Delete file"><i class="fa-solid fa-trash-can"></i></button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            updateActiveFileView();
+        }
+
+        function openZipExportModalForTab() {
+            const targetId = contextTargetFileId || activeFileId;
+            hideTabContextMenu();
+            if (targetId) openZipExportModal(targetId);
+        }
+
+        function openFullScreenEditorForTab() {
+            const targetId = contextTargetFileId || activeFileId;
+            hideTabContextMenu();
+            if (targetId) openFullScreenEditorModal(targetId);
+        }
+
+        function openXsdSchemaModalForTab() {
+            const targetId = contextTargetFileId || activeFileId;
+            hideTabContextMenu();
+            if (targetId) openXsdSchemaModal(targetId);
+        }
+
+        function openDuplicateModalForTab() {
+            const targetId = contextTargetFileId || activeFileId;
+            hideTabContextMenu();
+            if (targetId) openDuplicateModal(targetId);
+        }
+
+        function deleteTabFromContextMenu() {
+            const targetId = contextTargetFileId;
+            hideTabContextMenu();
+            if (targetId) deleteFile(targetId);
+        }
+
+        function switchToFile(id) {
+            activeFileId = id;
+            saveToLocalStorage();
+            renderTabs();
+        }
+
+        function getActiveFile() {
+            return workspaceFiles.find(f => f.id === activeFileId);
+        }
+
+        function updateActiveFileView() {
+            const file = getActiveFile();
+            const toolbar = document.getElementById('fileToolbar');
+            const emptyState = document.getElementById('emptyState');
+            const tabularContainer = document.getElementById('tabularViewContainer');
+            const verticalContainer = document.getElementById('verticalViewContainer');
+
+            if (!file) {
+                toolbar.classList.add('hidden');
+                emptyState.classList.remove('hidden');
+                tabularContainer.classList.add('hidden');
+                verticalContainer.classList.add('hidden');
+                return;
+            }
+
+            toolbar.classList.remove('hidden');
+            emptyState.classList.add('hidden');
+
+            document.getElementById('activeFileName').value = file.name;
+            document.getElementById('activeFileStats').textContent = `${file.rows.length} rows • ${file.headers.length} cols`;
+            
+            const typeBadge = document.getElementById('activeFileTypeBadge');
+            typeBadge.textContent = file.type.toUpperCase();
+            typeBadge.className = `text-[10px] font-semibold px-2 py-0.5 rounded uppercase tracking-wide ` + (file.type === 'dat' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' : 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300');
+
+            if (file.viewMode === 'vertical') {
+                tabularContainer.classList.add('hidden');
+                verticalContainer.classList.remove('hidden');
+                document.getElementById('btnVerticalView').className = 'px-2.5 py-1 rounded-md font-medium transition-colors bg-white dark:bg-[#1e1e1e] text-blue-600 dark:text-blue-400 shadow-xs';
+                document.getElementById('btnTabularView').className = 'px-2.5 py-1 rounded-md font-medium transition-colors text-slate-600 dark:text-slate-400';
+                renderVerticalView();
+            } else {
+                verticalContainer.classList.add('hidden');
+                tabularContainer.classList.remove('hidden');
+                document.getElementById('btnTabularView').className = 'px-2.5 py-1 rounded-md font-medium transition-colors bg-white dark:bg-[#1e1e1e] text-blue-600 dark:text-blue-400 shadow-xs';
+                document.getElementById('btnVerticalView').className = 'px-2.5 py-1 rounded-md font-medium transition-colors text-slate-600 dark:text-slate-400';
+                renderTabularView();
+            }
+        }
+
+        function setViewMode(mode) {
+            const file = getActiveFile();
+            if (!file) return;
+            file.viewMode = mode;
+            saveToLocalStorage();
+            updateActiveFileView();
+        }
+
+        function updateActiveFileName(name) {
+            const file = getActiveFile();
+            if (!file || !name.trim()) return;
+            file.name = name.trim();
+            saveToLocalStorage();
+            renderTabs();
+        }
+
+        function renderTabularView() {
+            const file = getActiveFile();
+            if (!file) return;
+
+            const thead = document.getElementById('tableHead');
+            const tbody = document.getElementById('tableBody');
+            const filterText = (document.getElementById('dataFilterInput').value || '').toLowerCase();
+
+            if (!columnWidths[file.id] || columnWidths[file.id].length !== file.headers.length) {
+                columnWidths[file.id] = file.headers.map(() => 180);
+            }
+            const widths = columnWidths[file.id];
+
+            // Free/Sticky Action Column at start position
+            let headHtml = `<tr><th class="w-24 px-2 py-2.5 text-center font-mono text-slate-400 sticky-col bg-slate-100 dark:bg-[#252526] border-r border-slate-200 dark:border-[#333333] shadow-sm">Actions</th>`;
+            file.headers.forEach((h, colIdx) => {
+                headHtml += `
+                    <th class="px-3 py-2.5 text-left font-semibold text-slate-700 dark:text-[#d4d4d4] relative group" style="width: ${widths[colIdx]}px;" draggable="true" ondragstart="handleColDragStart(event, ${colIdx})" ondragover="event.preventDefault()" ondrop="handleColDrop(event, ${colIdx})">
+                        <div class="flex items-center justify-between gap-1">
+                            <span class="text-[10px] text-slate-400 cursor-grab"><i class="fa-solid fa-grip-vertical"></i></span>
+                            <input type="text" value="${escapeHtml(h)}" onchange="updateHeader(${colIdx}, this.value)" class="bg-transparent font-semibold w-full focus:outline-none focus:ring-1 focus:ring-blue-500 px-1 rounded truncate">
+                            <div class="flex items-center gap-1">
+                                <button onclick="fillDownColumn(${colIdx})" title="Paste top cell value down column" class="text-slate-400 hover:text-blue-500 text-xs opacity-0 group-hover:opacity-100 p-0.5"><i class="fa-solid fa-arrows-down-to-line"></i></button>
+                                <button onclick="deleteColumn(${colIdx})" title="Delete Column" class="text-slate-400 hover:text-red-500 text-xs opacity-0 group-hover:opacity-100 p-0.5"><i class="fa-solid fa-xmark"></i></button>
+                            </div>
+                        </div>
+                        <div class="resizer" onmousedown="initColResize(event, ${colIdx})"></div>
+                    </th>
+                `;
+            });
+            headHtml += `</tr>`;
+            thead.innerHTML = headHtml;
+
+            const matchedRows = [];
+            file.rows.forEach((row, origIdx) => {
+                const rowStr = row.join(' ').toLowerCase();
+                if (!filterText || rowStr.includes(filterText)) {
+                    matchedRows.push({ row, origIdx });
+                }
+            });
+
+            if (matchedRows.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="${file.headers.length + 1}" class="text-center py-12 text-slate-400 text-xs">No matching records found.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = matchedRows.map(({ row, origIdx }, displayRowIdx) => {
+                let rowHtml = `
+                    <tr draggable="true" ondragstart="handleRowDragStart(event, ${origIdx})" ondragover="handleRowDragOver(event)" ondrop="handleRowDrop(event, ${origIdx})" class="hover:bg-slate-50 dark:hover:bg-[#2a2d2e] transition-colors">
+                        <td class="sticky-col bg-white dark:bg-[#1e1e1e] text-center py-2 px-1 whitespace-nowrap border-r border-slate-200 dark:border-[#333333] shadow-sm">
+                            <div class="flex items-center justify-center space-x-1">
+                                <span class="cursor-grab text-slate-400 hover:text-slate-600 px-1" title="Drag to swap row"><i class="fa-solid fa-grip-lines"></i></span>
+                                <button onclick="deleteRow(${origIdx})" title="Delete Row" class="text-slate-400 hover:text-red-500 p-1"><i class="fa-solid fa-trash-can text-xs"></i></button>
+                                <button onclick="moveRow(${origIdx}, -1)" title="Move Up" class="text-slate-400 hover:text-blue-500 p-1"><i class="fa-solid fa-arrow-up text-[10px]"></i></button>
+                                <button onclick="moveRow(${origIdx}, 1)" title="Move Down" class="text-slate-400 hover:text-blue-500 p-1"><i class="fa-solid fa-arrow-down text-[10px]"></i></button>
+                            </div>
+                        </td>
+                `;
+
+                file.headers.forEach((_, colIdx) => {
+                    const val = row[colIdx] !== undefined ? row[colIdx] : '';
+                    const isDate = isDateFormat(val);
+                    const htmlDateValue = isDate ? convertToISOFormat(val) : '';
+
+                    rowHtml += `
+                        <td class="p-2 border-r border-slate-200 dark:border-[#333333] last:border-0 align-top relative group" style="width: ${widths[colIdx]}px;">
+                            <div class="relative w-full flex items-center">
+                                <textarea rows="1" id="cell_${displayRowIdx}_${colIdx}" onkeydown="handleGridKeyDown(event, ${displayRowIdx}, ${colIdx}, ${matchedRows.length}, ${file.headers.length})" onpaste="handleTablePaste(event, ${origIdx}, ${colIdx})" oninput="autoExpandAndAdjustWidth(this, ${colIdx}); updateCell(${origIdx}, ${colIdx}, this.value)" class="grid-cell-input w-full bg-transparent border border-transparent hover:border-slate-300 dark:hover:border-slate-700 focus:border-blue-500 focus:bg-white dark:focus:bg-[#1e1e1e] rounded p-1.5 text-xs font-mono cell-wrap resize-none ${isDate ? 'pr-7' : ''}">${escapeHtml(val)}</textarea>
+                                ${isDate ? `
+                                    <div class="absolute right-1 top-1.5 flex items-center">
+                                        <label title="Select Date" class="cursor-pointer text-slate-400 hover:text-blue-500 p-1">
+                                            <i class="fa-regular fa-calendar-days text-xs"></i>
+                                            <input type="date" value="${htmlDateValue}" onchange="updateCellFromDatePicker(${origIdx}, ${colIdx}, this.value)" class="opacity-0 w-0 h-0 absolute">
+                                        </label>
+                                    </div>
+                                ` : ''}
+                            </div>
+                        </td>
+                    `;
+                });
+
+                rowHtml += `</tr>`;
+                return rowHtml;
+            }).join('');
+        }
+
+        function handleGridKeyDown(e, r, c, maxRows, maxCols) {
+            const textarea = e.target;
+            const textVal = textarea.value;
+            const cursorStart = textarea.selectionStart;
+            const cursorEnd = textarea.selectionEnd;
+
+            let nextR = r;
+            let nextC = c;
+            let shouldMove = false;
+
+            if (e.key === 'ArrowUp') {
+                if (r > 0) {
+                    const lines = textVal.substring(0, cursorStart).split('\n');
+                    if (lines.length === 1) {
+                        nextR = r - 1;
+                        shouldMove = true;
+                    }
+                }
+            } else if (e.key === 'ArrowDown') {
+                if (r < maxRows - 1) {
+                    const remainingText = textVal.substring(cursorEnd);
+                    if (!remainingText.includes('\n')) {
+                        nextR = r + 1;
+                        shouldMove = true;
+                    }
+                }
+            } else if (e.key === 'ArrowLeft') {
+                if (cursorStart === 0 && cursorEnd === 0) {
+                    if (c > 0) {
+                        nextC = c - 1;
+                        shouldMove = true;
+                    } else if (r > 0) {
+                        nextR = r - 1;
+                        nextC = maxCols - 1;
+                        shouldMove = true;
+                    }
+                }
+            } else if (e.key === 'ArrowRight') {
+                if (cursorStart === textVal.length && cursorEnd === textVal.length) {
+                    if (c < maxCols - 1) {
+                        nextC = c + 1;
+                        shouldMove = true;
+                    } else if (r < maxRows - 1) {
+                        nextR = r + 1;
+                        nextC = 0;
+                        shouldMove = true;
+                    }
+                }
+            }
+
+            if (shouldMove) {
+                e.preventDefault();
+                const targetEl = document.getElementById(`cell_${nextR}_${nextC}`);
+                if (targetEl) {
+                    targetEl.focus();
+                    targetEl.select();
+                }
+            }
+        }
+
+        function isDateFormat(str) {
+            if (!str) return false;
+            const regex = /^\d{4}[\/.-]\d{2}[\/.-]\d{2}$/;
+            return regex.test(str.trim());
+        }
+
+        function convertToISOFormat(str) {
+            if (!str) return '';
+            return str.trim().replace(/\//g, '-');
+        }
+
+        function updateCellFromDatePicker(rowIdx, colIdx, dateVal) {
+            if (!dateVal) return;
+            const formatted = dateVal.replace(/-/g, '/');
+            updateCell(rowIdx, colIdx, formatted);
+            renderActiveView();
+        }
+
+        function fillDownColumn(colIdx) {
+            const file = getActiveFile();
+            if (!file || file.rows.length === 0) return;
+            const targetVal = file.rows[0][colIdx] || '';
+            file.rows.forEach(row => {
+                row[colIdx] = targetVal;
+            });
+            saveToLocalStorage();
+            renderActiveView();
+            showToast(`Filled column with: "${targetVal}"`);
+        }
+
+        function autoExpandAndAdjustWidth(textarea, colIdx) {
+            autoExpand(textarea);
+            const file = getActiveFile();
+            if (!file) return;
+
+            const textLen = textarea.value.length;
+            const requiredWidth = Math.max(180, Math.min(600, textLen * 9 + 40));
+            if (requiredWidth > columnWidths[file.id][colIdx]) {
+                columnWidths[file.id][colIdx] = requiredWidth;
+                saveToLocalStorage();
+                renderTabularView();
+            }
+        }
+
+        function handleRowDragStart(e, rowIdx) {
+            draggedRowIndex = rowIdx;
+            e.currentTarget.classList.add('dragging');
+        }
+
+        function handleRowDragOver(e) {
+            e.preventDefault();
+        }
+
+        function handleRowDrop(e, targetRowIdx) {
+            e.preventDefault();
+            if (draggedRowIndex === null || draggedRowIndex === targetRowIdx) return;
+            const file = getActiveFile();
+            if (!file) return;
+
+            const movedRow = file.rows.splice(draggedRowIndex, 1)[0];
+            file.rows.splice(targetRowIdx, 0, movedRow);
+
+            draggedRowIndex = null;
+            saveToLocalStorage();
+            renderActiveView();
+            showToast("Row swapped successfully");
+        }
+
+        function handleTablePaste(event, startRow, startCol) {
+            const clipboardData = (event.clipboardData || window.clipboardData).getData('text');
+            if (!clipboardData) return;
+
+            if (clipboardData.includes('\t') || clipboardData.includes('\n') || clipboardData.includes('|') || clipboardData.includes(',')) {
+                event.preventDefault();
+                const file = getActiveFile();
+                if (!file) return;
+
+                const lines = clipboardData.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+                
+                let delimiter = '\t';
+                if (!lines[0].includes('\t')) {
+                    if (lines[0].includes('|')) delimiter = '|';
+                    else if (lines[0].includes(',')) delimiter = ',';
+                }
+
+                if (lines.length === 1 && !lines[0].includes(delimiter)) {
+                    file.rows[startRow][startCol] = lines[0];
+                    renderActiveView();
+                    return;
+                }
+
+                let maxColsNeeded = startCol;
+                let addedRowsCount = 0;
+
+                lines.forEach((line, rOffset) => {
+                    if (line.trim() === '' && rOffset === lines.length - 1) return;
+                    const cells = line.split(delimiter);
+                    const targetRowIndex = startRow + rOffset;
+
+                    while (file.rows.length <= targetRowIndex) {
+                        file.rows.push(new Array(file.headers.length).fill(''));
+                    }
+
+                    cells.forEach((cellVal, cOffset) => {
+                        const targetColIndex = startCol + cOffset;
+                        if (targetColIndex + 1 > maxColsNeeded) {
+                            maxColsNeeded = targetColIndex + 1;
+                        }
+
+                        while (file.headers.length <= targetColIndex) {
+                            const newColName = 'Column_' + (file.headers.length + 1);
+                            file.headers.push(newColName);
+                            if (columnWidths[file.id]) columnWidths[file.id].push(180);
+                            file.rows.forEach(r => {
+                                while (r.length < file.headers.length) r.push('');
+                            });
+                        }
+
+                        file.rows[targetRowIndex][targetColIndex] = cellVal.replace(/^["']|["']$/g, '');
+                    });
+                    addedRowsCount++;
+                });
+
+                file.rows.forEach(r => {
+                    while (r.length < file.headers.length) r.push('');
+                });
+
+                saveToLocalStorage();
+                renderActiveView();
+                showToast(`Pasted ${addedRowsCount} row(s) into workspace`);
+            }
+        }
+
+        function renderActiveView() {
+            const file = getActiveFile();
+            if (!file) return;
+            if (file.viewMode === 'vertical') renderVerticalView();
+            else renderTabularView();
+        }
+
+        let draggedColIdx = null;
+        function handleColDragStart(e, colIdx) {
+            draggedColIdx = colIdx;
+        }
+        function handleColDrop(e, targetIdx) {
+            e.preventDefault();
+            if (draggedColIdx === null || draggedColIdx === targetIdx) return;
+            const file = getActiveFile();
+            if (!file) return;
+
+            const movedHeader = file.headers.splice(draggedColIdx, 1)[0];
+            file.headers.splice(targetIdx, 0, movedHeader);
+
+            file.rows.forEach(row => {
+                const movedVal = row.splice(draggedColIdx, 1)[0];
+                row.splice(targetIdx, 0, movedVal);
+            });
+
+            if (columnWidths[file.id]) {
+                const movedW = columnWidths[file.id].splice(draggedColIdx, 1)[0];
+                columnWidths[file.id].splice(targetIdx, 0, movedW);
+            }
+
+            draggedColIdx = null;
+            saveToLocalStorage();
+            renderTabularView();
+            showToast("Column reordered");
+        }
+
+        let resizingColIdx = null;
+        let startX = 0;
+        let startWidth = 0;
+        function initColResize(e, colIdx) {
+            e.preventDefault();
+            resizingColIdx = colIdx;
+            startX = e.clientX;
+            const file = getActiveFile();
+            startWidth = columnWidths[file.id][colIdx];
+            
+            document.addEventListener('mousemove', onColResizeMove);
+            document.addEventListener('mouseup', onColResizeEnd);
+        }
+        function onColResizeMove(e) {
+            if (resizingColIdx === null) return;
+            const file = getActiveFile();
+            if (!file) return;
+            const diff = e.clientX - startX;
+            const newW = Math.max(80, startWidth + diff);
+            columnWidths[file.id][resizingColIdx] = newW;
+            renderTabularView();
+        }
+        function onColResizeEnd() {
+            resizingColIdx = null;
+            document.removeEventListener('mousemove', onColResizeMove);
+            document.removeEventListener('mouseup', onColResizeEnd);
+            saveToLocalStorage();
+        }
+
+        function moveRow(rowIdx, direction) {
+            const file = getActiveFile();
+            if (!file) return;
+            const targetIdx = rowIdx + direction;
+            if (targetIdx < 0 || targetIdx >= file.rows.length) return;
+
+            const temp = file.rows[rowIdx];
+            file.rows[rowIdx] = file.rows[targetIdx];
+            file.rows[targetIdx] = temp;
+
+            saveToLocalStorage();
+            renderActiveView();
+        }
+
+        function autoExpand(textarea) {
+            textarea.style.height = 'auto';
+            textarea.style.height = (textarea.scrollHeight) + 'px';
+        }
+
+        function renderVerticalView() {
+            const file = getActiveFile();
+            const wrapper = document.getElementById('verticalRecordsWrapper');
+            if (!file) return;
+
+            const filterText = (document.getElementById('dataFilterInput').value || '').toLowerCase();
+            const matched = [];
+            file.rows.forEach((row, origIdx) => {
+                if (!filterText || row.join(' ').toLowerCase().includes(filterText)) {
+                    matched.push({ row, origIdx });
+                }
+            });
+
+            if (matched.length === 0) {
+                wrapper.innerHTML = `<div class="text-center py-12 text-slate-400 text-xs">No matching records available.</div>`;
+                return;
+            }
+
+            wrapper.innerHTML = matched.map(({ row, origIdx }) => {
+                let fieldsHtml = '';
+                file.headers.forEach((h, colIdx) => {
+                    const val = row[colIdx] !== undefined ? row[colIdx] : '';
+                    const isDate = isDateFormat(val);
+                    const htmlDateValue = isDate ? convertToISOFormat(val) : '';
+
+                    fieldsHtml += `
+                        <div class="space-y-1">
+                            <label class="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide flex justify-between">
+                                <span>${escapeHtml(h)}</span>
+                                ${isDate ? `<span class="text-blue-500 text-[10px]"><i class="fa-regular fa-calendar font-normal mr-1"></i>Date</span>` : ''}
+                            </label>
+                            <div class="relative flex items-center">
+                                <textarea rows="1" onpaste="handleTablePaste(event, ${origIdx}, ${colIdx})" oninput="autoExpand(this); updateCell(${origIdx}, ${colIdx}, this.value)" class="w-full bg-slate-50 dark:bg-[#1e1e1e] border border-slate-200 dark:border-[#333333] rounded-lg p-2 text-xs font-mono cell-wrap resize-none focus:outline-none focus:ring-1 focus:ring-blue-500 ${isDate ? 'pr-7' : ''}">${escapeHtml(val)}</textarea>
+                                ${isDate ? `
+                                    <label title="Select Date" class="absolute right-2 cursor-pointer text-slate-400 hover:text-blue-500 p-1">
+                                        <i class="fa-regular fa-calendar-days text-xs"></i>
+                                        <input type="date" value="${htmlDateValue}" onchange="updateCellFromDatePicker(${origIdx}, ${colIdx}, this.value)" class="opacity-0 w-0 h-0 absolute">
+                                    </label>
+                                ` : ''}
+                            </div>
+                        </div>
+                    `;
+                });
+
+                return `
+                    <div class="bg-white dark:bg-[#252526] border border-slate-200 dark:border-[#333333] rounded-xl p-5 shadow-sm space-y-4">
+                        <div class="flex items-center justify-between border-b border-slate-200 dark:border-[#333333] pb-3">
+                            <span class="font-bold text-xs text-blue-600 dark:text-blue-400 font-mono">Record #${origIdx + 1}</span>
+                            <div class="flex items-center space-x-2">
+                                <button onclick="moveRow(${origIdx}, -1)" class="text-slate-400 hover:text-blue-500 text-xs"><i class="fa-solid fa-arrow-up"></i></button>
+                                <button onclick="moveRow(${origIdx}, 1)" class="text-slate-400 hover:text-blue-500 text-xs"><i class="fa-solid fa-arrow-down"></i></button>
+                                <button onclick="deleteRow(${origIdx})" class="text-slate-400 hover:text-red-500 text-xs flex items-center gap-1"><i class="fa-solid fa-trash-can"></i> Delete</button>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">${fieldsHtml}</div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function updateCell(rowIdx, colIdx, val) {
+            const file = getActiveFile();
+            if (!file) return;
+            if (!file.rows[rowIdx]) file.rows[rowIdx] = [];
+            file.rows[rowIdx][colIdx] = val;
+            saveToLocalStorage();
+        }
+
+        function updateHeader(colIdx, val) {
+            const file = getActiveFile();
+            if (!file) return;
+            file.headers[colIdx] = val;
+            saveToLocalStorage();
+        }
+
+        function addRow() {
+            const file = getActiveFile();
+            if (!file) return;
+            file.rows.push(new Array(file.headers.length).fill(''));
+            saveToLocalStorage();
+            renderActiveView();
+            showToast("Row added");
+        }
+
+        function addColumn() {
+            const file = getActiveFile();
+            if (!file) return;
+            const colName = prompt("Enter column name:", "Attribute_" + (file.headers.length + 1));
+            if (!colName) return;
+            file.headers.push(colName);
+            file.rows.forEach(r => r.push(''));
+            if (!columnWidths[file.id]) columnWidths[file.id] = file.headers.map(() => 180);
+            else columnWidths[file.id].push(180);
+            saveToLocalStorage();
+            renderActiveView();
+            showToast("Column added");
+        }
+
+        function deleteRow(rowIdx) {
+            const file = getActiveFile();
+            if (!file) return;
+            file.rows.splice(rowIdx, 1);
+            saveToLocalStorage();
+            renderActiveView();
+            showToast("Row deleted", "error");
+        }
+
+        function deleteColumn(colIdx) {
+            const file = getActiveFile();
+            if (!file) return;
+            if (file.headers.length <= 1) {
+                showToast("Cannot delete the only column.", "error");
+                return;
+            }
+            file.headers.splice(colIdx, 1);
+            file.rows.forEach(r => r.splice(colIdx, 1));
+            if (columnWidths[file.id]) columnWidths[file.id].splice(colIdx, 1);
+            saveToLocalStorage();
+            renderActiveView();
+            showToast("Column deleted", "error");
+        }
+
+        function openDuplicateModal(fileId) {
+            const file = fileId ? workspaceFiles.find(f => f.id === fileId) : getActiveFile();
+            if (!file) {
+                showToast("No active file to duplicate.", "error");
+                return;
+            }
+            
+            document.getElementById('duplicateSourceFileId').value = file.id;
+            
+            const lastDotIndex = file.name.lastIndexOf('.');
+            let baseName = file.name;
+            if (lastDotIndex !== -1) {
+                baseName = file.name.substring(0, lastDotIndex);
+            }
+            
+            document.getElementById('duplicateFileNameInput').value = `${baseName}_copy`;
+            document.getElementById('duplicateFileTypeSelect').value = file.type || 'dat';
+            document.getElementById('duplicateFileModal').classList.remove('hidden');
+        }
+
+        function closeDuplicateModal() {
+            document.getElementById('duplicateFileModal').classList.add('hidden');
+        }
+
+        function confirmDuplicateFile() {
+            const sourceId = document.getElementById('duplicateSourceFileId').value;
+            const sourceFile = workspaceFiles.find(f => f.id === sourceId);
+            
+            if (!sourceFile) {
+                showToast("Source file not found.", "error");
+                return;
+            }
+
+            let newName = document.getElementById('duplicateFileNameInput').value.trim() || 'Untitled_copy';
+            const newType = document.getElementById('duplicateFileTypeSelect').value;
+            
+            if (!newName.toLowerCase().endsWith(`.${newType}`)) {
+                newName += `.${newType}`;
+            }
+
+            const duplicatedFile = {
+                id: 'file_' + Date.now(),
+                name: newName,
+                type: newType,
+                headers: [...sourceFile.headers],
+                rows: sourceFile.rows.map(r => [...r]),
+                viewMode: sourceFile.viewMode || 'tabular'
+            };
+
+            if (columnWidths[sourceFile.id]) {
+                columnWidths[duplicatedFile.id] = [...columnWidths[sourceFile.id]];
+            }
+
+            workspaceFiles.push(duplicatedFile);
+            activeFileId = duplicatedFile.id;
+            
+            saveToLocalStorage();
+            closeDuplicateModal();
+            renderTabs();
+            showToast(`Duplicated to '${newName}'`);
+        }
+
+        function deleteFile(id) {
+            workspaceFiles = workspaceFiles.filter(f => f.id !== id);
+            if (activeFileId === id) activeFileId = workspaceFiles.length > 0 ? workspaceFiles[0].id : null;
+            saveToLocalStorage();
+            renderTabs();
+            showToast("File closed", "error");
+        }
+
+        function clearAllFiles() {
+            if (!confirm("Clear all files from current workspace?")) return;
+            workspaceFiles = [];
+            activeFileId = null;
+            saveToLocalStorage();
+            renderTabs();
+            showToast("Workspace cleared", "error");
+        }
+
+        function openFullScreenEditorModal(fileId) {
+            const targetId = fileId || activeFileId;
+            const file = workspaceFiles.find(f => f.id === targetId);
+            if (!file) {
+                showToast("No file selected for editing.", "error");
+                return;
+            }
+
+            fsEditingFileId = targetId;
+            fsCurrentFormat = file.type === 'csv' ? 'csv' : 'dat';
+
+            document.getElementById('fsEditorTitle').textContent = `Editing: ${file.name}`;
+            updateFullScreenEditorView();
+            document.getElementById('fullScreenEditorModal').classList.remove('hidden');
+        }
+
+        function closeFullScreenEditorModal() {
+            document.getElementById('fullScreenEditorModal').classList.add('hidden');
+            fsEditingFileId = null;
+        }
+
+        function switchFullScreenEditorFormat(fmt) {
+            fsCurrentFormat = fmt;
+            updateFullScreenEditorView();
+        }
+
+        function updateFullScreenEditorView() {
+            const file = workspaceFiles.find(f => f.id === fsEditingFileId);
+            if (!file) return;
+
+            const delimiter = fsCurrentFormat === 'csv' ? ',' : '|';
+            let content = file.headers.join(delimiter) + '\n';
+            content += file.rows.map(r => r.join(delimiter)).join('\n');
+
+            document.getElementById('fsRawTextarea').value = content;
+
+            const btnDat = document.getElementById('btnFsFormatDat');
+            const btnCsv = document.getElementById('btnFsFormatCsv');
+
+            if (fsCurrentFormat === 'dat') {
+                btnDat.className = "px-3 py-1 rounded-md font-medium transition-colors bg-white dark:bg-[#1e1e1e] text-blue-600 dark:text-blue-400 shadow-xs";
+                btnCsv.className = "px-3 py-1 rounded-md font-medium transition-colors text-slate-600 dark:text-slate-400";
+            } else {
+                btnCsv.className = "px-3 py-1 rounded-md font-medium transition-colors bg-white dark:bg-[#1e1e1e] text-blue-600 dark:text-blue-400 shadow-xs";
+                btnDat.className = "px-3 py-1 rounded-md font-medium transition-colors text-slate-600 dark:text-slate-400";
+            }
+        }
+
+        function saveFullScreenEditorData() {
+            const file = workspaceFiles.find(f => f.id === fsEditingFileId);
+            if (!file) return;
+
+            const text = document.getElementById('fsRawTextarea').value;
+            const lines = text.split(/\r?\n/).filter(l => l.trim() !== '');
+
+            if (lines.length === 0) {
+                showToast("Cannot save empty content.", "error");
+                return;
+            }
+
+            const delimiter = fsCurrentFormat === 'csv' ? ',' : '|';
+            const headers = lines[0].split(delimiter).map(h => h.trim().replace(/^["']|["']$/g, ''));
+            const rows = lines.slice(1).map(l => l.split(delimiter).map(c => c.trim().replace(/^["']|["']$/g, '')));
+
+            file.headers = headers;
+            file.rows = rows;
+            file.type = fsCurrentFormat;
+
+            if (columnWidths[file.id]) {
+                columnWidths[file.id] = headers.map(() => 180);
+            }
+
+            saveToLocalStorage();
+            closeFullScreenEditorModal();
+            renderTabs();
+            showToast("Raw changes saved and parsed into view!");
+        }
+
+        // =========================================================================
+        // MULTILEVEL OIC HDL TO NXSD SCHEMA GENERATOR
+        // Formats mapper XML payload directly into pipe-delimited (.dat) files
+        // Supports METADATA, MERGE, & DELETE repeating structures with custom ${eol}
+        // =========================================================================
+        function generateXsdSchemaForFile(file) {
+            if (!file || !file.rows || file.rows.length === 0) return '';
+
+            const sanitizeXmlTag = (str) => {
+                let clean = (str || 'Field').trim().replace(/[^a-zA-Z0-9_.-]/g, '_');
+                if (/^[0-9]/.test(clean)) clean = '_' + clean;
+                return clean;
+            };
+
+            const baseName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
+            const rootEntityName = sanitizeXmlTag(baseName);
+
+            // Group metadata types dynamically based on table rows
+            const metadataGroups = {};
+            const metadataIdx = file.headers.findIndex(h => h.toUpperCase() === 'METADATA');
+            const objectTypeIdx = metadataIdx !== -1 ? metadataIdx + 1 : 1;
+
+            file.rows.forEach(row => {
+                const isMetadataRow = row[0] && row[0].toUpperCase() === 'METADATA';
+                if (isMetadataRow || Object.keys(metadataGroups).length === 0) {
+                    const objType = row[objectTypeIdx] || rootEntityName;
+                    const cleanObjType = sanitizeXmlTag(objType);
+
+                    if (!metadataGroups[cleanObjType]) {
+                        metadataGroups[cleanObjType] = new Set();
+                    }
+
+                    file.headers.forEach((header, colIdx) => {
+                        //if (row[colIdx] !== undefined && row[colIdx] !== '') {
+                            metadataGroups[cleanObjType].add(sanitizeXmlTag(header));
+                        //}
+                    });
+                }
+            });
+
+            if (Object.keys(metadataGroups).length === 0) {
+                metadataGroups[rootEntityName] = new Set(file.headers.map(sanitizeXmlTag));
+            }
+
+            const objectKeys = Object.keys(metadataGroups);
+
+            let xsd = `<?xml version="1.0" encoding="UTF-8"?>\n`;
+            xsd += `<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"\n`;
+            xsd += `           xmlns:nxsd="http://xmlns.oracle.com/pcbpel/nxsd"\n`;
+            xsd += `           xmlns:tns="http://xmlns.oracle.com/pcbpel/nxsd/${rootEntityName}"\n`;
+            xsd += `           targetNamespace="http://xmlns.oracle.com/pcbpel/nxsd/${rootEntityName}"\n`;
+            xsd += `           elementFormDefault="qualified"\n`;
+            xsd += `           attributeFormDefault="unqualified"\n`;
+            xsd += `           nxsd:version="NXSD"\n`;
+            xsd += `           nxsd:type="delimited"\n`;
+            xsd += `           nxsd:stream="chars"\n`;
+            xsd += `           nxsd:encoding="UTF-8">\n\n`;
+
+            xsd += `  <!-- Oracle Integration Cloud (OIC) Pipe-Delimited NXSD Template File -->\n`;
+            xsd += `  <xs:element name="${rootEntityName}File">\n`;
+            xsd += `    <xs:complexType>\n`;
+            xsd += `      <xs:sequence>\n`;
+
+            objectKeys.forEach(objName => {
+                xsd += `        <!-- METADATA Record Group: ${objName} -->\n`;
+                xsd += `        <xs:element name="${objName}Group" minOccurs="0" maxOccurs="unbounded">\n`;
+                xsd += `          <xs:complexType>\n`;
+                xsd += `            <xs:sequence>\n`;
+
+                // Single Metadata Header Definition Row
+                xsd += `              <xs:element name="${objName}MetadataHeader" minOccurs="0" maxOccurs="1" nxsd:cellSeparatedBy="|" nxsd:arrayTerminatedBy="\${eol}">\n`;
+                xsd += `                <xs:complexType>\n`;
+                xsd += `                  <xs:sequence>\n`;
+
+                const fields = Array.from(metadataGroups[objName]);
+                fields.forEach((field, index) => {
+                    const isLast = index === fields.length - 1;
+                    //const sepAttr = isLast ? `nxsd:target="${field}"` : `nxsd:style="terminated" nxsd:terminatedBy="|"`;
+                    const sepAttr = isLast ? `nxsd:style="terminated" nxsd:terminatedBy="\${eol}"` : `nxsd:style="terminated" nxsd:terminatedBy="|"`;
+                    xsd += `                    <xs:element name="${field}" type="xs:string" ${sepAttr}/>\n`;
+                });
+
+                xsd += `                  </xs:sequence>\n`;
+                xsd += `                </xs:complexType>\n`;
+                xsd += `              </xs:element>\n`;
+
+                // Repeating MERGE or DELETE Data Rows
+                xsd += `              <xs:element name="${objName}DataRecord" minOccurs="0" maxOccurs="unbounded" nxsd:cellSeparatedBy="|" nxsd:arrayTerminatedBy="\${eol}">\n`;
+                xsd += `                <xs:complexType>\n`;
+                xsd += `                  <xs:sequence>\n`;
+
+                fields.forEach((field, index) => {
+                    const isLast = index === fields.length - 1;
+                    const sepAttr = isLast ? `nxsd:target="${field}"` : `nxsd:style="terminated" nxsd:terminatedBy="|"`;
+                    xsd += `                    <xs:element name="${field}" type="xs:string" ${sepAttr}/>\n`;
+                });
+
+                xsd += `                  </xs:sequence>\n`;
+                xsd += `                </xs:complexType>\n`;
+                xsd += `              </xs:element>\n`;
+
+                xsd += `            </xs:sequence>\n`;
+                xsd += `          </xs:complexType>\n`;
+                xsd += `        </xs:element>\n`;
+            });
+
+            xsd += `      </xs:sequence>\n`;
+            xsd += `    </xs:complexType>\n`;
+            xsd += `  </xs:element>\n`;
+            xsd += `</xs:schema>`;
+
+            return xsd;
+        }
+
+        function openXsdSchemaModal(fileId) {
+            const targetId = fileId || activeFileId;
+            const file = workspaceFiles.find(f => f.id === targetId);
+            if (!file) {
+                showToast("No active file selected.", "error");
+                return;
+            }
+
+            xsdTargetFileId = file.id;
+            const xsdContent = generateXsdSchemaForFile(file);
+
+            document.getElementById('xsdModalTitle').textContent = `OIC Stage File NXSD Schema: ${file.name}`;
+            document.getElementById('xsdOutputTextarea').value = xsdContent;
+            document.getElementById('xsdSchemaModal').classList.remove('hidden');
+        }
+
+        function closeXsdSchemaModal() {
+            document.getElementById('xsdSchemaModal').classList.add('hidden');
+            xsdTargetFileId = null;
+        }
+
+        function copyXsdToClipboard() {
+            const textarea = document.getElementById('xsdOutputTextarea');
+            textarea.select();
+            document.execCommand('copy');
+            showToast("NXSD Schema copied to clipboard!");
+        }
+
+        async function saveBlobWithPicker(blob, defaultFilename) {
+            if ('showSaveFilePicker' in window) {
+                try {
+                    const ext = defaultFilename.split('.').pop().toLowerCase();
+                    let mimeType = 'application/octet-stream';
+                    if (ext === 'xsd' || ext === 'xml') mimeType = 'application/xml';
+                    else if (ext === 'csv') mimeType = 'text/csv';
+                    else if (ext === 'dat' || ext === 'txt') mimeType = 'text/plain';
+                    else if (ext === 'xlsx') mimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+                    else if (ext === 'zip') mimeType = 'application/zip';
+
+                    const handle = await window.showSaveFilePicker({
+                        suggestedName: defaultFilename,
+                        types: [{
+                            description: `${ext.toUpperCase()} File`,
+                            accept: { [mimeType]: [`.${ext}`] }
+                        }]
+                    });
+                    const writable = await handle.createWritable();
+                    await writable.write(blob);
+                    await writable.close();
+                    showToast(`Saved file directly to chosen folder: ${handle.name}`);
+                    return true;
+                } catch (err) {
+                    if (err.name === 'AbortError') return false; // User cancelled prompt
+                    // Fall back to standard saveAs if write permission fails
+                }
+            }
+            saveAs(blob, defaultFilename);
+            showToast(`Downloaded ${defaultFilename}`);
+            return true;
+        }
+
+        function downloadXsdFile(usePicker = false) {
+            const file = workspaceFiles.find(f => f.id === xsdTargetFileId) || getActiveFile();
+            if (!file) return;
+
+            const baseName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
+            const content = document.getElementById('xsdOutputTextarea').value;
+            const blob = new Blob([content], { type: 'application/xml;charset=utf-8' });
+
+            if (usePicker) {
+                saveBlobWithPicker(blob, `${baseName}_schema.xsd`);
+            } else {
+                saveAs(blob, `${baseName}_schema.xsd`);
+                showToast("Downloaded .xsd Schema");
+            }
+        }
+
+        function openZipExportModal(targetFileId) {
+            if (workspaceFiles.length === 0) {
+                showToast("No files available for export.", "error");
+                return;
+            }
+
+            const fileToSelect = targetFileId ? workspaceFiles.find(f => f.id === targetFileId) : getActiveFile();
+            const baseTargetName = fileToSelect ? fileToSelect.name.substring(0, fileToSelect.name.lastIndexOf('.')) || fileToSelect.name : 'export';
+
+            const listContainer = document.getElementById('zipExportFilesList');
+            const istDateStr = new Intl.DateTimeFormat('en-GB', {
+                timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit',
+                hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
+            }).format(new Date()).replace(/[/:\s]/g, '_');
+
+            document.getElementById('zipArchiveNameInput').value = `${baseTargetName}_${istDateStr}`;
+
+            listContainer.innerHTML = workspaceFiles.map((file, idx) => {
+                const isSelected = targetFileId ? file.id === targetFileId : true;
+                const baseName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
+                const format = file.type || 'dat';
+
+                return `
+                    <div class="flex items-center gap-3 bg-white dark:bg-[#252526] p-2.5 rounded-lg border border-slate-200 dark:border-[#333333]">
+                        <input type="checkbox" id="zip_file_chk_${idx}" ${isSelected ? 'checked' : ''} class="rounded border-slate-300 dark:border-[#333333] text-blue-600 focus:ring-blue-500 cursor-pointer">
+                        <input type="hidden" id="zip_file_id_${idx}" value="${file.id}">
+                        <div class="flex-1 flex items-center gap-2">
+                            <input type="text" id="zip_file_name_${idx}" value="${escapeHtml(baseName)}" class="flex-1 px-2.5 py-1 bg-slate-50 dark:bg-[#1e1e1e] border border-slate-200 dark:border-[#333333] rounded text-xs font-mono focus:outline-none focus:ring-1 focus:ring-blue-500">
+                            <select id="zip_file_format_${idx}" class="px-2 py-1 bg-slate-50 dark:bg-[#1e1e1e] border border-slate-200 dark:border-[#333333] rounded text-xs font-mono focus:outline-none focus:ring-1 focus:ring-blue-500">
+                                <option value="dat" ${format === 'dat' ? 'selected' : ''}>.dat</option>
+                                <option value="csv" ${format === 'csv' ? 'selected' : ''}>.csv</option>
+                                <option value="xlsx" ${format === 'xlsx' ? 'selected' : ''}>.xlsx</option>
+                            </select>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            document.getElementById('zipExportModal').classList.remove('hidden');
+        }
+
+        function closeZipExportModal() {
+            document.getElementById('zipExportModal').classList.add('hidden');
+        }
+
+        async function generateCustomZipExport(usePicker = false) {
+            const zip = new JSZip();
+            let selectedCount = 0;
+
+            for (let i = 0; i < workspaceFiles.length; i++) {
+                const chk = document.getElementById(`zip_file_chk_${i}`);
+                if (chk && chk.checked) {
+                    const fileId = document.getElementById(`zip_file_id_${i}`).value;
+                    const nameInput = document.getElementById(`zip_file_name_${i}`).value.trim() || 'file';
+                    const format = document.getElementById(`zip_file_format_${i}`).value;
+                    const file = workspaceFiles.find(f => f.id === fileId);
+
+                    if (file) {
+                        selectedCount++;
+                        const fullFileName = `${nameInput}.${format}`;
+
+                        if (format === 'xlsx') {
+                            const wsData = [file.headers, ...file.rows];
+                            const ws = XLSX.utils.aoa_to_sheet(wsData);
+                            const wb = XLSX.utils.book_new();
+                            XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
+                            const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+                            zip.file(fullFileName, wbout);
+                        } else {
+                            const delimiter = format === 'csv' ? ',' : '|';
+                            let content = file.headers.join(delimiter) + '\n';
+                            content += file.rows.map(r => r.join(delimiter)).join('\n');
+                            zip.file(fullFileName, content);
+                        }
+                    }
+                }
+            }
+
+            if (selectedCount === 0) {
+                showToast("Select at least one file.", "error");
+                return;
+            }
+
+            let zipName = document.getElementById('zipArchiveNameInput').value.trim() || 'oracle_export_files';
+            if (!zipName.toLowerCase().endsWith('.zip')) zipName += '.zip';
+
+            const blob = await zip.generateAsync({ type: "blob" });
+            
+            if (usePicker) {
+                await saveBlobWithPicker(blob, zipName);
+            } else {
+                saveAs(blob, zipName);
+                showToast(`Generated ZIP containing ${selectedCount} file(s)`);
+            }
+            closeZipExportModal();
+        }
+
+        function openCopyModal() {
+            const file = getActiveFile();
+            if (!file) return;
+            document.getElementById('copyModal').classList.remove('hidden');
+            updateCopyTextContent();
+        }
+        function closeCopyModal() { document.getElementById('copyModal').classList.add('hidden'); }
+        function updateCopyTextContent() {
+            const file = getActiveFile();
+            if (!file) return;
+            const format = document.getElementById('copyFormatSelect').value;
+            const delimiter = format === 'csv' ? ',' : '|';
+            let content = file.headers.join(delimiter) + '\n';
+            content += file.rows.map(r => r.join(delimiter)).join('\n');
+            document.getElementById('copyTextarea').value = content;
+        }
+        function executeCopyData() {
+            const textarea = document.getElementById('copyTextarea');
+            textarea.select();
+            document.execCommand('copy');
+            showToast("Copied to clipboard!");
+            closeCopyModal();
+        }
+
+        function createNewFileModal() { document.getElementById('newFileModal').classList.remove('hidden'); }
+        function closeNewFileModal() { document.getElementById('newFileModal').classList.add('hidden'); }
+        function confirmCreateNewFile() {
+            const name = document.getElementById('newFileNameInput').value.trim() || 'Untitled.dat';
+            const type = document.getElementById('newFileTypeSelect').value;
+            const newFile = {
+                id: 'file_' + Date.now(),
+                name,
+                type,
+                headers: ['METADATA', 'Object', 'EffectiveStartDate', 'SourceSystemId'],
+                rows: [
+                    ['METADATA', 'Object', 'EffectiveStartDate', 'SourceSystemId'],
+                    ['MERGE', 'Object', '2023/01/01', 'SS_ID_1']
+                ],
+                viewMode: 'tabular'
+            };
+            workspaceFiles.push(newFile);
+            activeFileId = newFile.id;
+            saveToLocalStorage();
+            closeNewFileModal();
+            renderTabs();
+            showToast("File created");
+        }
+
+        function openImportModal() { document.getElementById('importModal').classList.remove('hidden'); }
+        function closeImportModal() { document.getElementById('importModal').classList.add('hidden'); }
+        function closeFileTypePrompt() { document.getElementById('fileTypePromptModal').classList.add('hidden'); pendingGitHubContent = null; }
+
+        async function loadFromGitHubPromptType() {
+            const url = document.getElementById('githubUrlInput').value.trim();
+            if (!url) { showToast("Enter a valid URL.", "error"); return; }
+            try {
+                const res = await fetch(url);
+                if (!res.ok) throw new Error("Request failed");
+                pendingGitHubContent = await res.text();
+                closeImportModal();
+                document.getElementById('fileTypePromptModal').classList.remove('hidden');
+            } catch (e) {
+                showToast("Failed to fetch from URL.", "error");
+            }
+        }
+
+        function confirmFileTypeSelection(fileType) {
+            if (!pendingGitHubContent) return;
+            parseAndLoadContent(pendingGitHubContent, 'GitHub_Data.' + fileType, fileType);
+            closeFileTypePrompt();
+            showToast("Imported successfully");
+        }
+
+        function handleLocalFileUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const ext = file.name.split('.').pop().toLowerCase();
+
+            if (ext === 'xlsx' || ext === 'xls') {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const json = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                    if (json.length === 0) { showToast("Sheet is empty.", "error"); return; }
+                    const headers = json[0].map(h => String(h || ''));
+                    const rows = json.slice(1).map(r => headers.map((_, i) => String(r[i] !== undefined ? r[i] : '')));
+                    
+                    workspaceFiles.push({ id: 'file_' + Date.now(), name: file.name, type: 'xlsx', headers, rows, viewMode: 'tabular' });
+                    activeFileId = workspaceFiles[workspaceFiles.length - 1].id;
+                    saveToLocalStorage();
+                    closeImportModal();
+                    renderTabs();
+                    showToast("Excel document imported");
+                };
+                reader.readAsArrayBuffer(file);
+            } else {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    parseAndLoadContent(e.target.result, file.name, ext === 'csv' ? 'csv' : 'dat');
+                    closeImportModal();
+                    showToast("Text file imported");
+                };
+                reader.readAsText(file);
+            }
+        }
+
+        function parseAndLoadContent(text, fileName, fileType) {
+            const lines = text.split(/\r?\n/).filter(l => l.trim() !== '');
+            if (lines.length === 0) return;
+            let delimiter = fileType === 'csv' ? ',' : '|';
+            if (fileType === 'dat') {
+                if (lines[0].includes('|')) delimiter = '|';
+                else if (lines[0].includes('\t')) delimiter = '\t';
+                else if (lines[0].includes(',')) delimiter = ',';
+            }
+            const headers = lines[0].split(delimiter).map(h => h.trim().replace(/^["']|["']$/g, ''));
+            const rows = lines.slice(1).map(l => l.split(delimiter).map(c => c.trim().replace(/^["']|["']$/g, '')));
+
+            workspaceFiles.push({ id: 'file_' + Date.now(), name: fileName, type: fileType, headers, rows, viewMode: 'tabular' });
+            activeFileId = workspaceFiles[workspaceFiles.length - 1].id;
+            saveToLocalStorage();
+            renderTabs();
+        }
+
+        function toggleExportMenu() { document.getElementById('exportMenu').classList.toggle('hidden'); }
+
+        async function exportFile(format, usePicker = false) {
+            const file = getActiveFile();
+            if (!file) return;
+            document.getElementById('exportMenu').classList.add('hidden');
+
+            if (format === 'xsd') {
+                openXsdSchemaModal();
+                if (usePicker) {
+                    setTimeout(() => downloadXsdFile(true), 200);
+                }
+                return;
+            }
+
+            const istDateStr = new Intl.DateTimeFormat('en-GB', {
+                timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit',
+                hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
+            }).format(new Date()).replace(/[/:\s]/g, '_');
+
+            const baseName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
+            const filename = `${baseName}_${istDateStr}.${format}`;
+
+            let blob;
+            if (format === 'xlsx') {
+                const wsData = [file.headers, ...file.rows];
+                const ws = XLSX.utils.aoa_to_sheet(wsData);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
+                const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+                blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+            } else {
+                const delimiter = format === 'csv' ? ',' : '|';
+                let content = file.headers.join(delimiter) + '\n';
+                content += file.rows.map(r => r.join(delimiter)).join('\n');
+                blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+            }
+
+            if (usePicker) {
+                await saveBlobWithPicker(blob, filename);
+            } else {
+                saveAs(blob, filename);
+                showToast("Export completed");
+            }
+        }
+
+        async function exportWorkspaceZip(usePicker = false) {
+            if (workspaceFiles.length === 0) { showToast("Workspace is empty.", "error"); return; }
+            const zip = new JSZip();
+            workspaceFiles.forEach(file => {
+                const delimiter = file.type === 'csv' ? ',' : '|';
+                let content = file.headers.join(delimiter) + '\n';
+                content += file.rows.map(r => r.join(delimiter)).join('\n');
+                zip.file(file.name, content);
+            });
+            const istDateStr = new Intl.DateTimeFormat('en-GB', {
+                timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit',
+                hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
+            }).format(new Date()).replace(/[/:\s]/g, '_');
+
+            const zipName = `Oracle_Studio_Backup_${istDateStr}.zip`;
+            const blob = await zip.generateAsync({ type: "blob" });
+
+            if (usePicker) {
+                await saveBlobWithPicker(blob, zipName);
+            } else {
+                saveAs(blob, zipName);
+                showToast("Workspace backup saved");
+            }
+        }
+
+        function importWorkspaceZip(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            JSZip.loadAsync(file).then(async function(zip) {
+                workspaceFiles = [];
+                let promises = [];
+                zip.forEach(function (relativePath, zipEntry) {
+                    if (!zipEntry.dir) {
+                        promises.push(
+                            zipEntry.async("string").then(function (content) {
+                                const ext = relativePath.split('.').pop().toLowerCase();
+                                const fileType = ext === 'csv' ? 'csv' : 'dat';
+                                const lines = content.split(/\r?\n/).filter(l => l.trim() !== '');
+                                if (lines.length > 0) {
+                                    const delimiter = fileType === 'csv' ? ',' : '|';
+                                    const headers = lines[0].split(delimiter).map(h => h.trim().replace(/^["']|["']$/g, ''));
+                                    const rows = lines.slice(1).map(l => l.split(delimiter).map(c => c.trim().replace(/^["']|["']$/g, '')));
+                                    workspaceFiles.push({ id: 'file_' + Math.random(), name: relativePath, type: fileType, headers, rows, viewMode: 'tabular' });
+                                }
+                            })
+                        );
+                    }
+                });
+                await Promise.all(promises);
+                if (workspaceFiles.length > 0) activeFileId = workspaceFiles[0].id;
+                saveToLocalStorage();
+                renderTabs();
+                showToast("Workspace restored");
+            }).catch(err => { showToast("Could not parse ZIP file.", "error"); });
+        }
+
+        function escapeHtml(str) {
+            return String(str)
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+    </script>
+</body>
+</html>
